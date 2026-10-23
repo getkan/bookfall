@@ -1,0 +1,28 @@
+# SQLite for development and test; PostgreSQL (Neon) for production.
+default: &default
+  adapter: sqlite3
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  timeout: 5000
+
+development:
+  <<: *default
+  database: storage/development.sqlite3
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  <<: *default
+  database: storage/test.sqlite3
+
+# Single primary database. DATABASE_URL is the pooled Neon connection string
+# injected by Vercel; prepared statements and advisory locks are disabled
+# because the pooler runs in transaction mode and does not preserve session
+# state. Migrations run separately against DATABASE_URL_UNPOOLED.
+production:
+  adapter: postgresql
+  url: <%= ENV["DATABASE_URL"] %>
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  prepared_statements: false
+  advisory_locks: false
+  idle_timeout: 60
