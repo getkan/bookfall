@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 3: detailed design and implementation | In progress; sync publication and CORS implemented | PostgreSQL acceptance pending | Stage 4 after implementation and passing acceptance |
+| BACKEND | Stage 3: detailed design and implementation | Completed; SQLite/PostgreSQL acceptance passed | Evidence commit checkpoint; Stage 4 not started | User approval for Stage 4 feature-wide review |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -48,7 +48,7 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 
 ### Stage 3: Detailed design and implementation
 
-- Approval: granted 2026-10-24. Status: In progress. Models and BE-AUTH
+- Approval: granted 2026-10-24. Status: Completed. Models and BE-AUTH
   completed with passing focused tests. Auth, listing and Books-only seeds
   were committed as `ae58b2d`. User then selected completion of BE-CRUD:
   detail/writes, existing-event reconciliation and atomic deletion pass focused
@@ -62,8 +62,11 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   Sync publication now passes atomic rollback and pinned-revision checks.
   Publication committed as `69d7dfe`. CORS allowlist, Authorization preflight,
   rejected origins and unchanged authentication now pass the full SQLite gate.
-  Stop at the CORS commit checkpoint before PostgreSQL acceptance;
-  Stage 4 approval remains separate.
+  CORS committed as `aecc469`. Disposable PostgreSQL 17.11 acceptance passes:
+  123 tests/1,619 assertions, complete local gate, empty-database production
+  migrations, constraints, Solid Cache/pooler checks and live HTTP walkthrough.
+  Task-scoped infrastructure removed. Evidence is in TASKS.
+  Stop at the acceptance evidence commit checkpoint and request Stage 4 approval.
 - Implement only user-selected units with model/unit and integration tests:
   domain, auth, CRUD, ranks/revisions, pagination, seed data, and CORS.
 - Reuse completed database configuration rather than reimplementing it.

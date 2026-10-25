@@ -3,7 +3,8 @@
 ## Current scope and session
 
 - ID: **BACKEND**; [SPEC](SPEC.md), [ROADMAP](ROADMAP.md).
-- Lifecycle: Stage 3 detailed design/implementation, **In progress**.
+- Lifecycle: Stage 3 detailed design/implementation, **Completed**;
+  awaiting user approval for Stage 4 feature-wide review.
 - Stage 2: **Completed**, accepted by the user on 2026-10-24 after the
   reviewed architecture, skeleton and expected-red contract checkpoint.
 - Stage 3 approval: granted on 2026-10-24. BE-BOOK and remaining model work
@@ -23,6 +24,73 @@
 - FRONTEND remains Stage 1; DEPLOY remains blocked. No commit or publication
   is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
+
+## Stage 3 selected unit: PostgreSQL acceptance
+
+**Completed (2026-10-24), reviewed, uncommitted evidence** — BACKEND-1 through
+BACKEND-6. CORS was committed as `aecc469`; user authorized continuing.
+
+- Scoped plan: run the existing complete suite against disposable PostgreSQL;
+  migrate a separate empty database with production configuration; verify
+  constraints, pooler settings, Solid Cache and live cross-process HTTP behavior.
+  No application changes or new dependencies/tests were necessary: existing
+  adapter-independent tests passed without changes or weakened assertions.
+- Reviewed inputs: database/production/cache configuration, three migrations,
+  test helper, database constraint and cache-publication rollback tests,
+  BookEventSync, Timeline::Refresh, User, book controller/routes, CI commands,
+  SPEC acceptance and ROADMAP exit criteria. Existing work was preserved.
+- Isolation: task-scoped Docker network and `postgres:17-alpine` container
+  (PostgreSQL **17.11**), no host ports or external database URLs. Separate
+  databases `bookfall_acceptance` (test) and `bookfall_production_acceptance`
+  (production configuration); Ruby **3.4.11**, Rails **8.1.4**.
+  Disposable credentials/signing key were not used outside this harness.
+- Test database commands, inside the Ruby Docker container with
+  `BUNDLE_PATH=/stage2-gems`, `RAILS_ENV=test`, `PARALLEL_WORKERS=1`, and
+  `DATABASE_URL=postgresql://postgres@postgres/bookfall_acceptance`:
+  - `bin/rails db:prepare`: passed.
+  - `bin/rails test`: **123 tests, 1,619 assertions**, zero failures/errors/skips;
+    repeated with the full final gate and passed again. Includes SQL-enforced
+    chronology/rating/rank/type/uniqueness and real-cache transaction rollback
+    tests, auth/CRUD, ranks, cursor isolation/expiry and CORS.
+  - `bin/rails zeitwerk:check`: passed.
+  - `bin/rubocop`: **60 files**, no offenses.
+  - `bin/bundler-audit`: no vulnerabilities.
+  - `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+    zero errors/warnings.
+  - `bin/rails db:seed:replant` and `bin/rails book_events:sync`: passed.
+- Empty production-configured database:
+  - `RAILS_ENV=production bin/rails db:migrate`: all three migrations applied;
+    verified their versions and all six domain/checkpoint checks plus event
+    foreign key directly in PostgreSQL catalogs.
+  - `bin/rails runner`: verified PostgreSQL adapter, `SELECT 1`, disabled prepared
+    statements/advisory locks, Solid Cache write/read and shared primary pool.
+  - `bin/rails db:seed` twice: exactly **17 Books**, zero events/users before
+    disposable admin creation; `bin/rails book_events:sync` published **19 events**.
+  - `bin/rails server -b 127.0.0.1 -p 3100 -P /tmp/bookfall-acceptance.pid`:
+    `/up` returned **200** before the live walkthrough. Server accessible only
+    inside its disposable container.
+  - HTTP walkthrough: approved Authorization/JSON preflight, no cookie credentials,
+    rejected unauthorized write, admin login/list/create/show/update/delete,
+    finish-before-start **422**, complete **19-event** cursor traversal without
+    duplicates, joined fields/rating without review, paired ranks, new revision
+    after a separate sync process, old cursor retention and deletion publication.
+    All assertions passed.
+- Direct acceptance review: migrations and schema-loaded tests agree; primary
+  pool/cache atomicity and production adapter flags verified, no adapter-specific
+  regressions or actionable findings. Optional image processing emitted a
+  missing-libvips warning; no image features are implemented/exercised. No
+  dependency installed for that unrelated warning.
+- Evidence retained in session artifacts: `postgres-acceptance.log`,
+  `postgres-final-gate.log`, `postgres-production-acceptance.log`,
+  `postgres-http-acceptance.log` and the HTTP walkthrough script.
+  Disposable Rails/Postgres containers, Postgres volume and network removed.
+- `git diff --check`: passed. No production/Neon, Vercel or browser rendering
+  validation claimed. Advanced sync overlap/concurrent-write risk remains
+  explicitly deferred. Full SQLite gate passed in the preceding CORS unit;
+  application/test sources were unchanged by this acceptance unit.
+- Stage 3 exit evidence now passes. Stop for the evidence commit checkpoint
+  and request explicit Stage 4 approval before feature-wide review; that review
+  is not performed or implied by this unit's acceptance review.
 
 ## Stage 3 selected unit: CORS
 
@@ -659,28 +727,26 @@ configuration validation tests belong to the authorized scheduling work.
 Validation: `git diff --check` and exact environment-template value check passed.
 Runtime tests skipped: environment-template and documentation changes only.
 
-Except for completed BE-BOOK/BE-AUTH/BE-CRUD/BE-SEEDS/BE-REVISION/BE-EVENTS/BE-SYNC,
-these remain **Not started** as detailed
-business-logic units. Stage 3 is approved, but the user must select each
-session task; table order is not
-permission to choose or implement a unit automatically.
+All selected Stage 3 implementation units and cross-adapter acceptance are
+complete. Stage 4 feature-wide review remains unstarted pending explicit user
+approval; table order does not authorize stage advancement.
 
 | Task ID | Outcome | Requirements | Dependencies | Acceptance/checks to define or run |
 | --- | --- | --- | --- | --- |
 | BE-BOOK (Completed) | Books with opaque user_id, timestamps, nullable rating/review and model validations | BACKEND-1 | Structural schema | 10 new model tests pass; validation evidence and commit checkpoint above |
 | BE-AUTH (Completed) | Admin-only account functionality on Users, one-time env provisioning, protected passwords, login and rate limit | BACKEND-2 | Existing User schema; approved auth/provisioning policy | Passing auth/provisioning integration tests and live HTTP smoke; evidence and commit checkpoint above |
 | BE-CRUD (Completed; 35a15f5) | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | CRUD/auth/error/rollback tests and live HTTP CRUD pass; evidence above |
-| BE-REVISION (Completed; uncommitted) | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot and randomized rank contracts | Pinned payloads, 24-hour expiry, eviction/410 recovery and refresh failure tests pass; cross-process live refresh passes |
+| BE-REVISION (Completed; ae169ef) | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot and randomized rank contracts | Pinned payloads, 24-hour expiry, eviction/410 recovery and refresh failure tests pass; cross-process live refresh passes |
 | BE-SYNC (Completed; publication committed as `69d7dfe`) | Incremental event reconciliation, atomic revision publication and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK; randomized rank contract; BE-REVISION | Projection/rank/checkpoint and real-cache atomic publication/rollback tests pass; advanced concurrency risk deferred |
-| BE-EVENTS (Completed; uncommitted) | Complete date-span API, bounds, next cursor and restart errors; joined Book fields/rating, never review | BACKEND-4 | BE-REVISION; API contract | Timeline and joined-field contracts pass; live pagination/refresh walkthrough passes |
+| BE-EVENTS (Completed; ae169ef) | Complete date-span API, bounds, next cursor and restart errors; joined Book fields/rating, never review | BACKEND-4 | BE-REVISION; API contract | Timeline and joined-field contracts pass; live pagination/refresh walkthrough passes |
 | BE-SEEDS (Completed; ae58b2d) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
-| BE-CORS (Completed; uncommitted) | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight, origin rejection, unchanged auth and full SQLite gate pass |
+| BE-CORS (Completed; aecc469) | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight, origin rejection, unchanged auth and full SQLite/PostgreSQL gates pass |
+| BE-ACCEPTANCE (Completed; evidence uncommitted) | Disposable PostgreSQL acceptance | BACKEND-1/2/3/4/5/6 | Completed implementation units | Full 123-test suite, fresh production-configured migrations, Solid Cache and live cross-process HTTP walkthrough pass |
 
 Structural contracts, deterministic fixtures and executable intended-behavior
-tests now exist; see Stage 2 baseline below. BE-BOOK, BE-AUTH, BE-CRUD,
-BE-SEEDS, BE-REVISION and BE-EVENTS are complete; remaining detailed
-implementation tasks remain Not started and are not
-selected by Stage 3 approval alone.
+tests now exist; see Stage 2 baseline below. All implementation units and
+PostgreSQL acceptance are complete; feature-wide Stage 4 review requires
+separate approval.
 
 BE-REVIEW is superseded by embedded Books fields, not completed. Separate Admin
 model and date-only schema tasks are superseded too. Rank assignment is
