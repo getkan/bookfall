@@ -11,6 +11,96 @@
 
 ## Stage 2 session unit
 
+2026-10-24 follow-up decisions supersede earlier open-policy notes:
+24-hour non-sliding snapshot cache with early eviction/410 accepted; direct
+browser API with CORS accepted. Add `book_events:refresh_cache` and
+`Timeline::Refresh.call` explicit Stage 2 stub. Refresh publishes a new current
+revision but preserves still-cached pinned revisions and the sync watermark.
+PATCH updates existing book_id events; DELETE removes existing events.
+Advanced concurrency coverage is explicitly deferred as low priority.
+
+Expiry, early eviction, force-refresh/pinned-cursor, existing-event edit and
+existing-event deletion contracts added. Cache tests use a private MemoryStore
+per test and restore Rails.cache afterward; no application cache is cleared.
+No Stage 3 runtime logic, live scheduler, rank algorithm, or commit authorized.
+
+Latest baseline for the complete expanded suite:
+
+- Documented Ruby 3.4 Docker prefix with disposable SQLite:
+  `bin/rails db:migrate && bin/rails test`:
+  **40 tests / 86 assertions / 23 expected failures / 5 expected errors /
+  0 skips**. Twenty-two failures are explicit HTTP 501 responses; the other
+  failure expects injected SQL failure but encounters the sync stub first.
+  Errors are four sync FeatureNotImplemented and one seed FeatureNotImplemented.
+  No discovery/setup failures or unrelated structural regressions.
+- Structural/route/health selection after db:migrate:
+  **12 tests / 62 assertions passed**; `bin/rails zeitwerk:check` passed;
+  `bin/rubocop`: **45 files, no offenses**. `git diff --check` passed.
+- Earlier undecided-expiry notes below are superseded. Cache expiry/eviction/
+  refresh contracts now exist; advanced concurrency is intentionally deferred,
+  not part of this Stage 2 test unit. Force-refresh and CRUD behaviors are
+  assertions of intended future behavior; their later assertions remain blocked
+  behind the present explicit HTTP/service stubs.
+- No schema changes; Postgres and frontend/browser checks not rerun. Preserve
+  existing pending contract changes. Stop for commit checkpoint and Stage 2
+  design review; no automatic Stage 3 transition.
+
+**BE-CONTRACT-EXPANSION — In progress (2026-10-24):** user confirmed the
+other endpoint contracts, 30-day spans, environment-driven one-time admin
+initialization and the proposed login rate limit. Add executable tests for
+anchor normalization/full days, backward traversal, boundary clipping,
+same-timestamp events, invalid parameter combinations, pinned mutation
+isolation, changed-book reconciliation, equal-watermark replay and failed-run
+rollback/retry. Keep all Stage 3 stubs explicit.
+
+Revision-expiry timing/storage fault injection and true concurrent-run/write
+tests still require the design decisions being explained to the user; do not
+choose cache TTL or locking infrastructure just to write those tests. This
+unit expands coverage but does not claim those undecided cases are covered.
+
+Implemented subset and validation:
+
+- Timeline tests now cover 30-day span bounds, offset/mid-day anchors, backward
+  traversal and stable same-timestamp ordering, both outside-bound cases,
+  conflicting/duplicate/empty parameters, invalid timestamps and payload
+  consistency after source mutation.
+- Sync tests now cover changed-book filtering, removed finish events, preserved
+  IDs/unrelated events, exact-watermark replay, and write-failure rollback/retry.
+  Failure injection subscribes to event-write SQL notifications without
+  implementing or mocking a successful sync result.
+- Using the documented Ruby 3.4 container prefix and disposable SQLite database:
+  `bin/rails db:migrate && bin/rails test
+  test/integration/timeline_contract_test.rb
+  test/integration/book_event_sync_contract_test.rb`:
+  **16 tests / 12 assertions / 12 expected failures / 4 expected errors /
+  0 skips**. Eleven failures are HTTP 501, one expects an injected database
+  failure but encounters the explicit sync stub first; all four errors are
+  that same intentional FeatureNotImplemented sync exception.
+- Structural regression selection (`backend_structure_test`,
+  `task_checkpoint_structure_test`, `backend_skeleton_test`, `health_check_test`)
+  after `db:migrate`: **12 tests / 62 assertions passed**.
+  `bin/rubocop`: **44 files, no offenses**; `git diff --check` passed.
+- Existing unrelated pending API documentation preserved. No application
+  behavior, schemas, or Stage 3 implementation changed. Full suite/Postgres
+  reruns skipped: only targeted integration tests and documents changed.
+- Unit remains In progress for revision-expiry and actual concurrency cases,
+  which need the explained design decisions. No new full-suite count is
+  claimed, and no previously recorded baseline is silently overwritten.
+
+API contract clarification, 2026-10-24: user accepted recommended before/after
+timestamp navigation anchors with cursor-only continuation. SPEC defines full
+UTC-day inclusion, chronological ordering within backward pages, boundary
+clipping, terminal results, explicit errors, and revision pinning. No endpoint
+behavior implemented or existing test baseline changed.
+
+Required next contract coverage: both anchor directions including timestamps
+mid-day and with offsets, default earliest page, backward prepend traversal,
+same-timestamp events, empty interior spans, outside-bounds anchors, conflicting/
+duplicate/empty parameters, invalid timestamps/cursors and expired revisions.
+These cases are not yet executable tests; add them before affected Stage 3
+implementation. Documentation checks: `git diff --check`; runtime checks
+skipped because this session changes only requirements. No commit authorized.
+
 **BE-SKELETON — Completed (Stage 2 structural unit only):** schema/models and bcrypt,
 controller/service stubs with explicit logged failures, deterministic shared
 seed/test data, and intended API integration tests.

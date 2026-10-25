@@ -120,6 +120,9 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
   instructions, not successful empty responses.
 - Store timestamps in UTC and group events into UTC calendar days. Date-span
   boundaries use UTC, independent of browser or developer-machine timezone.
+- Initial navigation accepts mutually exclusive `before` or `after` timestamp
+  anchors; continuation accepts only `cursor`. These are date-span navigation
+  anchors, not strict timestamp filters. See the HTTP contract for boundaries.
 
 ### BACKEND-5: Integration and deterministic data
 
@@ -156,13 +159,14 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
   current skeleton does not consume the variable or start a scheduler.
   The freshness target beyond invocation frequency remains undecided.
 - Stage 3 must handle retries idempotently, preserve existing event identities,
-  reconcile changed/removed finish timestamps, serialize competing task runs,
+  reconcile changed/removed finish timestamps,
   and expose failures without advancing the successful watermark. Store
   sanitized operational error information, not credentials or book reviews.
 - A naive `updated_at > last_finished_at` query can lose edits. Stage 3 must
-  define a captured processing bound, inclusive boundary replay, and a tested
-  policy for concurrent/uncommitted book writes; advancing to wall-clock run
-  completion is not a safe checkpoint. Event updates and watermark advancement
+  define a captured processing bound and inclusive boundary replay; advanced
+  coordination of concurrent/uncommitted writes is deferred as low priority
+  by the later user decision below. Advancing to wall-clock run completion
+  is not a safe checkpoint. Event updates and watermark advancement
   must be atomic; failed-attempt monitoring must survive rollback.
 - Hard-deleted books cannot be discovered through Books.updated_at. Retain
   dependent event removal on deletion; design snapshot invalidation/deletion
@@ -308,7 +312,7 @@ approval. Browser/proxy choice does not change these API permissions.
 | `POST /books` with `{ "book": {...} }` | 201, `{ "book": {...} }` |
 | `PATCH /books/:id` with `{ "book": {...} }` | 200, `{ "book": {...} }` |
 | `DELETE /books/:id` | 204, empty body |
-| `GET /book-events` with optional cursor | 200, timeline envelope below |
+| `GET /book-events` with optional before, after, or cursor | 200, timeline envelope below |
 
 Books serialize id, opaque user_id, title, author, started_at, finished_at.
 Completed books additionally expose rating/review (possibly null); unfinished
@@ -319,6 +323,56 @@ Errors use `{ "error": { "code": "...", "message": "..." } }`:
 401 unauthorized, 403 forbidden for authenticated non-admin, 404 not_found,
 422 validation_failed, 400 invalid_cursor, 410 revision_expired, 429 rate_limited.
 Only the skeleton-specific 501 not_implemented exists at this stage.
+
+#### Timeline query parameters
+
+Accepted 2026-10-24: use `before`, `after`, and opaque cursor pagination while
+preserving complete UTC days per page.
+
+| Parameter | Meaning |
+| --- | --- |
+| `after` | Initial ISO 8601 timestamp anchor; navigate toward newer UTC days |
+| `before` | Initial ISO 8601 timestamp anchor; navigate toward older UTC days |
+| `cursor` | Opaque server-issued continuation, preserving direction, span position, and revision |
+
+- Supply at most one of these parameters. Reject before+after or cursor with
+  either anchor using 400 `invalid_parameters`. Empty/duplicate parameter
+  values are invalid, not an instruction to use defaults.
+- Anchors require a full timestamp with explicit `Z` or timezone offset;
+  normalize to UTC before identifying its calendar day. Invalid timestamps
+  return 400 `invalid_timestamp`. Encode a positive offset's `+` as `%2B`.
+- Both anchors include their entire UTC calendar day: `after` starts a span
+  at that day and extends forward; `before` ends a span at that day and extends
+  backward. Events earlier/later than the timestamp within the anchor day are
+  included deliberately. No date is partially loaded.
+- With no parameters, start at the earliest event date and navigate forward.
+  Clip spans to the revision's timeline bounds. An after anchor beyond the
+  latest date, or before anchor earlier than the earliest date, returns empty
+  events, null span, and null next_cursor, retaining nonempty revision bounds.
+  Anchors on the opposite outer side clip to the nearest timeline boundary.
+- Within every response, events remain in ascending stable order, even when
+  browsing backward. A backward continuation selects the immediately preceding
+  date span, so the frontend prepends it. Forward continuation appends.
+- `next_cursor` continues in the original direction; null means exhausted.
+  Do not add a redundant `has_more`. Empty nonterminal spans still advance.
+- Cursor contents are private and signed: version, pinned revision, direction
+  and next UTC date-span boundary. Timestamp alone is never an event cursor.
+  Complete-day boundaries plus deterministic `(timestamp, type priority,
+  start_rank, book_id, id)` ordering preserve all same-timestamp events.
+- A malformed/tampered cursor returns 400 `invalid_cursor`; an unavailable
+  pinned revision returns 410 `revision_expired`. Restart explicitly from an
+  initial anchor or default request; never silently mix revisions.
+
+```http
+GET /book-events?after=2026-01-01T12:00:00Z
+GET /book-events?before=2026-04-01T12:00:00Z
+GET /book-events?cursor=<opaque-token>
+```
+
+The examples anchor on January 1 or April 1 respectively and include that
+entire UTC day, not just events strictly after/before noon. Each page covers
+30 consecutive UTC dates, clipped at timeline bounds; there is no event-count
+limit that could split a day. Approved 2026-10-24.
 
 Timeline response shape:
 
@@ -345,15 +399,51 @@ Each span includes all timestamps on its UTC dates, never splitting a day.
 Empty timeline: null bounds values, null span, empty events, null next_cursor.
 Nonterminal empty spans retain a cursor.
 
-Design proposals for Stage 3 review, not approved product commitments:
-30-day spans, signed cursors carrying revision and next UTC day, immutable
-serialized revisions retained 24 hours in Rails.cache, 410 forcing a fresh
-first-page request. Snapshot publication must be coherent with mutations;
-the three requested domain tables do not alone provide historical revisions.
-Resolve retention/cache guarantees before implementing publication. Proposed
-login policy: 10 attempts per IP per 3 minutes, with Retry-After and tests;
-provisioning via explicit environment-driven rake task and explicit rotation.
-These policies and the frontend-dependent rank assignment remain visible work.
+Approved 2026-10-24: initial admin provisioning is a one-time initialization
+rake task reading `ADMIN_USERNAME` and `ADMIN_PASSWORD` from the environment.
+It hashes the password and grants the admin role; missing settings fail
+explicitly. This is an explicit task invocation, not a per-request operation
+or automatic password overwrite on every app start. Password rotation is a
+separate, not-yet-defined administrative operation.
+
+Approved login rate limit: 10 attempts per IP per 3 minutes, responding with
+429 `rate_limited` and Retry-After seconds. Count attempts regardless of
+credential success; use a shared store and trusted proxy/IP configuration.
+No user-management endpoints are added.
+
+Approved 2026-10-24: immutable serialized revisions in Rails.cache, with
+24-hour maximum retention from publication (not sliding on reads). Eviction
+may end availability earlier. Unavailable revisions return 410 revision_expired
+and require an explicit initial request; do not silently switch to live data.
+Old cursors retain their original payloads after new revisions are published.
+No additional SQL snapshot table is required.
+
+Add `bin/rails book_events:refresh_cache`, delegating to `Timeline::Refresh.call`.
+It builds and publishes a new revision from committed Books/BookEvents even
+when the normal current revision has not expired. It does not globally clear
+Rails.cache, invalidate still-available pinned revisions, or advance the
+incremental sync checkpoint. It refreshes the cached projection, not a substitute
+for synchronizing missing events. Failure must surface and leave the prior
+current revision usable. Stage 2 contains only the explicit failing boundary.
+
+Book edits are rare: PATCH updates existing associated events by book_id,
+preserving identities for types that remain. DELETE removes the Book and its
+existing BookEvents atomically. Removing finished_at removes the FINISH event;
+adding a finish still requires the shared deferred rank contract.
+Scheduled sync remains responsible for incremental creation/reconciliation.
+Existing cached revisions remain immutable; a scheduled publication or explicit
+refresh exposes edits/deletions to new timeline requests.
+
+Advanced concurrent-write/overlap design is deferred as low priority by user
+decision, not claimed solved or tested. Keep idempotent boundary replay, failure
+rollback and successful-checkpoint semantics; Stage 3 must document remaining
+race risk and avoid claiming timestamp selection alone guarantees no lost
+updates. Do not add a writer/reader coordination subsystem in this stage.
+
+Approved API access: browser calls Rails directly. Allow only configured
+FRONTEND_ORIGIN via CORS, allow the Authorization header, and do not enable
+credentialed cookie requests. Rails still enforces admin permissions independently
+of CORS. No Next.js forwarding proxy is needed.
 
 ### Stage 2 acceptance and expected-red coverage
 

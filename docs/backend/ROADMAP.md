@@ -89,3 +89,14 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 - 2026-10-24: Configure future scheduling through
   `BOOK_EVENTS_SYNC_INTERVAL_SECONDS`, default 600 seconds (10 minutes).
   Environment template added; runtime scheduling remains deferred.
+- 2026-10-24: Accept before/after timestamp navigation anchors and cursor-only
+  continuation for the timeline, retaining complete UTC-day spans and pinned
+  revisions. API contract refinement only; Stage 3 remains unapproved.
+- 2026-10-24: Approve 30-day pages, one-time environment-driven admin rake
+  initialization, and 10 login attempts/IP/3 minutes with Retry-After.
+  Expand executable timeline/sync contracts; revision storage, concurrent-sync
+  strategy and browser/API access remain under explanation, not approved.
+- 2026-10-24: Accept cache revisions with 24-hour maximum retention and early
+  eviction/410 recovery, plus forced cache-refresh rake task. Accept direct
+  browser-to-Rails access. Edit/delete associated events by book_id; advanced
+  concurrency design deferred as low priority, not silently treated as solved.

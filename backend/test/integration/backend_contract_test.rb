@@ -75,6 +75,31 @@ class BackendContractTest < ActionDispatch::IntegrationTest
     assert_equal "validation_failed", response.parsed_body.dig("error", "code")
   end
 
+  test "admin edit updates associated event dates without replacing identities" do
+    book = books(:completed)
+    event_ids = book.book_events.order(:id).pluck(:id)
+    patch "/books/#{book.id}",
+      params: { book: { started_at: "2026-01-02T12:00:00Z", finished_at: "2026-04-02T12:00:00Z" } },
+      headers: admin_headers, as: :json
+    assert_response :ok
+    assert_equal event_ids, book.book_events.order(:id).pluck(:id)
+    assert_equal Time.utc(2026, 1, 2, 12), book.book_events.find_by!(type: "START").date
+    assert_equal Time.utc(2026, 4, 2, 12), book.book_events.find_by!(type: "FINISH").date
+  end
+
+  test "admin deletion removes preexisting associated events" do
+    book = books(:completed)
+    assert_equal 2, book.book_events.count
+    headers = admin_headers
+    assert_difference("BookEvent.count", -2) do
+      assert_difference("Book.count", -1) do
+        delete "/books/#{book.id}", headers: headers
+        assert_response :no_content
+      end
+    end
+    assert_empty BookEvent.where(book_id: book.id)
+  end
+
   private
     def admin_headers
       post "/login", params: { username: "fixture-admin", password: "fixture-only-password" }, as: :json
