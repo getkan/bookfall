@@ -1,6 +1,15 @@
 require "test_helper"
 
 class BackendContractTest < ActionDispatch::IntegrationTest
+  setup do
+    @original_rate_limit_store = SessionsController.login_rate_limit_store
+    SessionsController.login_rate_limit_store = ActiveSupport::Cache::MemoryStore.new
+  end
+
+  teardown do
+    SessionsController.login_rate_limit_store = @original_rate_limit_store
+  end
+
   test "admin login returns a bearer token" do
     post "/login", params: { username: "fixture-admin", password: "fixture-only-password" }, as: :json
     assert_response :ok

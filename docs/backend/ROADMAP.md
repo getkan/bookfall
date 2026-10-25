@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 3: detailed design and implementation | In progress; BE-BOOK completed | Frontend-owned rank assignment deferred | Stage 4 after implementation and passing acceptance |
+| BACKEND | Stage 3: detailed design and implementation | In progress; models and BE-AUTH completed | Frontend-owned rank assignment deferred | Stage 4 after implementation and passing acceptance |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -48,9 +48,11 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 
 ### Stage 3: Detailed design and implementation
 
-- Approval: granted 2026-10-24. Status: In progress. User-selected BE-BOOK
-  model validations/tests completed; stop at its commit checkpoint before
-  selecting or implementing another unit. Other business logic remains stubbed.
+- Approval: granted 2026-10-24. Status: In progress. Models and BE-AUTH
+  completed with passing focused tests. User then requested GET /books:
+  listing is implemented and verified on the local server; stop at its commit
+  checkpoint. Books-only seeds are implemented (events come from sync).
+  Book detail/writes, timeline and sync remain stubbed.
 - Implement only user-selected units with model/unit and integration tests:
   domain, auth, CRUD, ranks/revisions, pagination, seed data, and CORS.
 - Reuse completed database configuration rather than reimplementing it.

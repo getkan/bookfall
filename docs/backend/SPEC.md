@@ -6,8 +6,9 @@ Subproject ID: **BACKEND**. Provide the Rails API for one shared bookclub
 timeline and admin-authorized book management, with a Users table for admin accounts.
 Non-admin user functionality is outside this project's current scope.
 [Roadmap](ROADMAP.md) and [tasks](TASKS.md) track its independent lifecycle,
-Stage 2 completed and Stage 3 authorized 2026-10-24; implementation awaits
-user-selected tasks. [Deployment](../SPEC.md) follows completion of both apps.
+Stage 2 completed and Stage 3 authorized 2026-10-24; model work and BE-AUTH
+and GET /books are implemented. Other implementation requires user-selected tasks.
+[Deployment](../SPEC.md) follows completion of both apps.
 
 The accepted [shared timeline layout](../BOOKEVENT_TIMELINE_LAYOUT_PLAN.md)
 replaces event-count pagination and the proportional-gap/slider design.
@@ -126,9 +127,11 @@ and Rails mapping are recorded in the structural schema below.
 
 ### BACKEND-5: Integration and deterministic data
 
-- Idempotent staging seeds include completed/in-progress books, overlapping
-  reading spans, both event types on one day, empty date spans, cross-page
-  event pairs, and dense same-day collisions. Seeds do not create the admin.
+- Idempotent staging seeds create Books only: completed/in-progress books,
+  overlapping reading spans, same-day start/finish and dense same-day starts.
+  Matching uses title/author/started_at, never fixture IDs; existing matches
+  are left unchanged. Seeds create no users/admin and no BookEvents; events
+  come from `book_events:sync` (supersedes the earlier seeded-events policy).
 - Approved direct-browser `rack-cors` policy uses `FRONTEND_ORIGIN`, `headers: :any`,
   GET/POST/PATCH/DELETE/OPTIONS/HEAD, and no credentials; test allowed and
   disallowed origins and Authorization preflight. No Next.js proxy is required.
@@ -182,7 +185,9 @@ in [.ruby-version](../../backend/.ruby-version), API-only scaffold initially
 containing only `/up`. Stage 2 now adds structural User/Book/BookEvent models
 and explicit HTTP 501 product routes in [routes](../../backend/config/routes.rb).
 bcrypt is installed for password structure; `rack-cors` remains commented out.
-Local API port is 3001. Detailed behavior is not implemented.
+Local API port is 3001. BE-AUTH login, admin provisioning and book authorization
+and book listing are implemented; authorized book detail/write actions and
+public timeline remain 501 stubs.
 
 [Database configuration](../../backend/config/database.yml) uses SQLite for
 development/test and a single production Postgres database from `DATABASE_URL`
@@ -234,8 +239,8 @@ the dependency without silently choosing cycling, random values, or defaults.
 
 Stage 2 architecture, skeletons, deterministic fixtures and expected-red
 integration baseline were accepted on 2026-10-24. Stage 3 is authorized.
-The user selected BE-BOOK and then the remaining model layer; their model
-validations and User token contract now have passing tests.
+The user selected BE-BOOK, the remaining model layer, and BE-AUTH; their model,
+token, provisioning, login, authorization and rate-limit checks pass.
 Other implementation tasks still require user selection from TASKS.
 
 ## Approved changes and resources
@@ -270,8 +275,9 @@ Authorization: user approved BACKEND Stage 2 on 2026-10-24 and confirmed
 `user_id` as a nullable string placeholder with no association. This supersedes
 the earlier foreign-key/username-label requirement. FRONTEND and DEPLOY do
 not advance. Stage 2 was subsequently accepted and Stage 3 authorized on
-2026-10-24. Model validations and User's token contract are implemented;
-endpoint and service business logic remains unimplemented.
+2026-10-24. Model validations, BE-AUTH and book listing are implemented;
+Books-only staging seeds are implemented; book detail/writes, timeline and
+sync business logic remains unimplemented.
 
 ### Structural schema
 
@@ -295,25 +301,34 @@ endpoint and service business logic remains unimplemented.
 ### Components and data flow
 
 - `User`: bcrypt password protection, required/unique username, boolean admin
-  flag, and 12-hour password-salt-bound api_access tokens. Admin provisioning
-  and HTTP authentication/authorization remain unimplemented; request handlers
-  must check the current admin role, not a role embedded in the token.
+  flag, and 12-hour password-salt-bound api_access tokens.
+- `AdminProvisioning.call` and `admin:provision`: explicit initial creation from
+  environment; reject missing settings, existing admin or occupied username.
+  Reruns fail rather than overwrite a password or promote an existing account.
 - `Book`, `BookEvent`: associations/database shape and model validations exist.
   BookEvent requires an existing book, START/FINISH type, unique book/type,
   valid date and integer rank 1..12. Mutation/event synchronization and
   serialization remain unimplemented; model callbacks do not allocate ranks
   or reconcile associated records.
-- `SessionsController#create`: planned credential validation and token response.
-- `BooksController`: authenticated/admin index/show/create/update/destroy;
-  all writes include optional rating/review. No ownership lookup.
+- `SessionsController#create`: implemented admin credential validation and
+  token response with Cache-Control no-store, no cookie session, shared
+  Solid Cache attempt counter and explicit 429 response.
+- `ApplicationController#require_admin`: verifies the bearer token and current
+  persisted role for every book route. Invalid credentials return 401;
+  authenticated non-admins return 403.
+- `BooksController`: admin guard implemented for index/show/create/update/destroy;
+  index returns all books in ascending ID order with the approved conditional
+  review serialization. Other action bodies remain stubs.
+  Intended writes include optional rating/review.
+  No ownership lookup.
 - `BookEventsController#index` currently delegates to `Timeline::Page.call(cursor:)`.
   Stage 3 must extend this boundary to carry the approved before/after anchors.
   The service owns cursor verification, UTC spans, pinned revision/bounds,
   event serialization and explicit errors. Stage 2 raises a specific
   unimplemented error; the controller logs and returns 501, never fake data.
-- `StagingSeeds.load!`: idempotent staged-data loader contract with explicit
-  stub failure. Deterministic YAML books/events are executable test fixtures
-  now; Stage 3 implements loading/synchronization. No admin secrets in seeds.
+- `StagingSeeds.load!`: implemented Books-only idempotent loader from
+  `db/seeds/books.yml`, validated in one transaction. Deterministic BookEvents
+  exist only as test fixtures. No admin secrets, users or events in seeds.
 - `TaskCheckpoint` and `BookEventSync.call`: scheduled incremental projection
   boundary described in BACKEND-6. The new table is operational state, not a
   fourth user-facing resource; no management endpoint is added.
@@ -350,7 +365,8 @@ Errors use `{ "error": { "code": "...", "message": "..." } }`:
 401 unauthorized, 403 forbidden for authenticated non-admin, 404 not_found,
 422 validation_failed, 400 invalid_parameters/invalid_timestamp/invalid_cursor,
 410 revision_expired, 429 rate_limited.
-Only the skeleton-specific 501 not_implemented exists at this stage.
+BE-AUTH implements 401/403 and login 429; unimplemented action bodies return
+the skeleton-specific 501 not_implemented. Other errors remain intended contracts.
 
 #### Timeline query parameters
 
@@ -433,11 +449,24 @@ It hashes the password and grants the admin role; missing settings fail
 explicitly. This is an explicit task invocation, not a per-request operation
 or automatic password overwrite on every app start. Password rotation is a
 separate, not-yet-defined administrative operation.
+Implemented command: `bin/rails admin:provision` after migrations. If any admin
+already exists or the configured username is occupied, fail without changing
+accounts. No silent idempotent success or automatic role promotion.
 
 Approved login rate limit: 10 attempts per IP per 3 minutes, responding with
 429 `rate_limited` and Retry-After seconds. Count attempts regardless of
 credential success; use a shared store and trusted proxy/IP configuration.
 No user-management endpoints are added.
+
+Implemented using SolidCache::Store directly in every environment, independent
+of the general Rails.cache setting. Counters expire three minutes after the
+first attempt; later increments do not extend that window. Return conservative
+Retry-After 180 seconds on rejection. Cache errors or invalid counter results
+raise rather than disable the limit. TRUSTED_PROXY_CIDRS is an explicit
+comma-separated IP/CIDR list, empty by default; invalid entries fail boot.
+Use forwarded client IPs only when the direct peer is trusted, otherwise use
+the direct peer IP. Deployment must verify actual proxy ranges and ingress
+header sanitation; no platform range is assumed.
 
 Approved 2026-10-24: immutable serialized revisions in Rails.cache, with
 24-hour maximum retention from publication (not sliding on reads). Eviction

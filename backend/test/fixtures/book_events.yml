@@ -1,1 +1,38 @@
-<%= ERB.new(File.read(Rails.root.join("db/seeds/book_events.yml"))).result %>
+completed_start:
+  id: 1001
+  book_id: 101
+  type: START
+  date: "2026-01-01T12:00:00Z"
+  start_rank: 1
+completed_finish:
+  id: 1002
+  book_id: 101
+  type: FINISH
+  date: "2026-04-01T12:00:00Z"
+  start_rank: 1
+unfinished_start:
+  id: 1003
+  book_id: 102
+  type: START
+  date: "2026-01-02T23:30:00Z"
+  start_rank: 12
+same_day_start:
+  id: 1004
+  book_id: 103
+  type: START
+  date: "2026-01-03T08:00:00Z"
+  start_rank: 2
+same_day_finish:
+  id: 1005
+  book_id: 103
+  type: FINISH
+  date: "2026-01-03T20:00:00Z"
+  start_rank: 2
+<% 14.times do |index| %>
+dense_<%= index %>_start:
+  id: <%= 2000 + index %>
+  book_id: <%= 200 + index %>
+  type: START
+  date: "2026-01-04T12:00:00Z"
+  start_rank: 3
+<% end %>

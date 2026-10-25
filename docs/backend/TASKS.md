@@ -6,14 +6,148 @@
 - Lifecycle: Stage 3 detailed design/implementation, **In progress**.
 - Stage 2: **Completed**, accepted by the user on 2026-10-24 after the
   reviewed architecture, skeleton and expected-red contract checkpoint.
-- Stage 3 approval: granted on 2026-10-24. BE-BOOK is complete. User then
-  selected the remaining model layer (User, BookEvent, TaskCheckpoint),
-  continuing without committing the previous unit. No endpoint/service unit
-  is selected by that request.
+- Stage 3 approval: granted on 2026-10-24. BE-BOOK and remaining model work
+  were committed as `7b1b563`. BE-AUTH is implemented but uncommitted.
+  User subsequently requested running/fixing `/books`; implement only its
+  GET list action (partial BE-CRUD), then Books-only BE-SEEDS (uncommitted).
+  Detail/write, timeline, sync and frontend implementation remain unselected.
 - `user_id` remains a nullable string placeholder, with no user association.
 - FRONTEND remains Stage 1; DEPLOY remains blocked. No commit or publication
   is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
+
+## Stage 3 selected unit: BE-SEEDS (Books only)
+
+**Completed (2026-10-24)** — BACKEND-5, uncommitted.
+
+- User decision: seeds create Books only; BookEvents are created by
+  `book_events:sync`. Supersedes the earlier seeded-events requirement.
+- `StagingSeeds.load!` reads `db/seeds/books.yml`, validates every record,
+  and creates missing Books by title/author/started_at in one transaction.
+  Fixture IDs are ignored, avoiding PK collisions/sequence drift on Postgres;
+  existing matches are not modified. No users, events, sync or cache work.
+  Natural keys are not DB-unique; concurrent seed runs are not supported.
+- Moved event data from `db/seeds/book_events.yml` into
+  `test/fixtures/book_events.yml`; test fixtures are unchanged.
+- Rewrote `staging_seeds_contract_test.rb` (4 tests): empty-database seed
+  twice, existing books/events preserved, only missing books created without
+  fixture IDs, invalid data raises and creates nothing.
+- Evidence (Ruby 3.4 Docker, disposable SQLite, after `bin/rails db:migrate`):
+  - `bin/rails test test/integration/staging_seeds_contract_test.rb`:
+    **4 tests / 23 assertions / 0 failures**.
+  - Fresh database `bin/rails db:seed` twice: **17 books, 0 events, 0 users**
+    after each run.
+  - `bin/rails zeitwerk:check` passed; `bin/rubocop` **54 files, no offenses**;
+    Brakeman **no warnings**.
+  - Full `bin/rails test`: **89 tests / 694 assertions / 20 failures /
+    4 errors / 0 skips**. The seed-loader error is resolved; remaining are
+    CRUD/timeline 501s and sync stubs. `db:prepare` no longer stops at seeds.
+
+## Stage 3 selected unit: GET /books (partial BE-CRUD)
+
+**Completed (2026-10-24)** — list action only, BACKEND-1/2.
+
+- Reproduced local anonymous GET /books 401 and authenticated GET /books 501
+  at the explicit listing stub. Authentication is required, not an error to
+  remove. User requested resolving the endpoint failure, continuing beyond
+  the prior commit checkpoint without committing.
+- Implement index using all Books in ascending ID order, with explicit
+  id/user_id/title/author/started_at/finished_at fields; completed books also
+  expose nullable rating/review. Unfinished books omit both even if stored.
+  Empty data returns `{ "books": [] }`. No records or credentials modified.
+- Added three listing integration tests for full field/value shape, stable
+  complete list, conditional reviews and empty state. Adjusted auth/skeleton
+  tests only for the newly implemented list action; all other stubs remain.
+- Documented Ruby 3.4 Docker prefix, disposable SQLite, RAILS_ENV=test,
+  PARALLEL_WORKERS=1, after `bin/rails db:migrate`:
+  - `bin/rails test test/integration/book_listing_test.rb
+    test/integration/authentication_test.rb test/integration/admin_provisioning_test.rb
+    test/integration/backend_skeleton_test.rb test/models
+    test/integration/health_check_test.rb`:
+    **58 tests / 634 assertions / 0 failures / 0 errors / 0 skips**.
+  - `bin/rails zeitwerk:check`: passed; `bin/rubocop`: **54 files, no offenses**.
+  - `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+    **0 warnings/errors**; `bin/bundler-audit`: **no vulnerabilities**.
+  - Full `bin/rails test`: **86 tests / 671 assertions / 20 failures /
+    5 errors / 0 skips**. The existing combined list/show contract now proceeds
+    past listing and fails at the show stub, rather than the list stub.
+    Other CRUD, timeline, sync and seed contracts remain unimplemented.
+- Verified actual local server after the change: authenticated GET /books 200,
+  valid books envelope with zero books; anonymous GET /books remains 401.
+  Token stayed in process memory; no credentials, tokens or book payloads
+  printed, no sample data inserted. Docker host networking could not reach the
+  host server, so generated the signed test token in the container and sent
+  the request from the host without displaying it.
+- PostgreSQL not rerun (no schema change); no browser changes. README,
+  requests.http and SPEC distinguish implemented listing from remaining stubs.
+  BE-CRUD overall remains In progress, not Completed.
+- No commit created; stop at the implementation-unit commit checkpoint.
+
+## Stage 3 selected unit: BE-AUTH
+
+**Completed (2026-10-24)** — BACKEND-2.
+
+- Plan: explicit `admin:provision` task/service from environment, refusing
+  existing admins/usernames without overwriting or promoting accounts.
+  Login validates admin credentials and returns the existing 12-hour
+  password-bound token. Every book action requires a valid bearer and current
+  admin role; anonymous/invalid requests get 401, non-admin tokens get 403.
+- Add a database-backed Solid Cache login counter in every environment:
+  10 attempts/IP/3 minutes, successful and failed attempts counted,
+  429 rate_limited with conservative Retry-After 180 seconds. Missing cache
+  counter results fail explicitly rather than bypassing the limiter.
+- Configure explicit TRUSTED_PROXY_CIDRS (default no trusted proxy); ignore
+  forwarding headers from untrusted peers. Verify real proxy ranges and ingress
+  sanitation during deployment; do not invent trusted infrastructure.
+- Tests: provisioning success/errors/refusal/rake behavior, login and all book
+  authorization boundaries, token expiry/tamper/password revocation/deletion/
+  current role, IP isolation/spoofing/proxy handling, reset timing, mixed
+  successful/failed attempts, shared cache stores and explicit store failure.
+- Replace temporary skeleton assertions only for implemented auth paths:
+  authorized book actions and public timeline still explicitly return 501.
+  No business contract assertion is weakened to accept a stub.
+- Implementation: `AdminProvisioning.call`, `admin:provision`,
+  SessionsController login/shared limiter, ApplicationController admin guard,
+  BooksController filter, and explicit trusted-proxy initializer. User's
+  existing password-bound token implementation is reused, not duplicated.
+  Provisioning rejects any existing admin or occupied username; no implicit
+  rotation, account promotion or startup task.
+- Added 15 auth/provisioning integration tests. Existing backend contract
+  tests isolate the login cache per test; the temporary skeleton test now
+  exercises authorized unimplemented actions instead of expecting login 501.
+- Exact validation uses the documented Ruby 3.4 Docker prefix with disposable
+  SQLite, `RAILS_ENV=test`, `PARALLEL_WORKERS=1`, after `bin/rails db:migrate`:
+  - `bin/rails test test/integration/authentication_test.rb
+    test/integration/admin_provisioning_test.rb test/integration/backend_skeleton_test.rb
+    test/models test/integration/health_check_test.rb`:
+    **55 tests / 524 assertions / 0 failures / 0 errors / 0 skips**.
+  - `bin/rails zeitwerk:check`: passed; `bin/rubocop`: **53 files, no offenses**.
+  - `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+    **0 warnings/errors**; `bin/bundler-audit`: **no vulnerabilities**.
+  - Full `bin/rails test`: **83 tests / 559 assertions / 20 failures /
+    5 errors / 0 skips**. Exactly 19 CRUD/timeline HTTP 501 failures, one
+    injected-SQL expectation hitting the sync stub, four sync and one seed
+    stub errors. BE-AUTH tests pass; the full backend/CI is not green.
+- Live HTTP smoke against a task-scoped Rails server/disposable database:
+  run migrations and `bin/rails admin:provision`, then verify `/up` 200,
+  login 200/token, anonymous `/books` 401, admin `/books` reaching its 501
+  stub, ten successful login attempts and eleventh 429/Retry-After 180.
+  Server stopped and container removed; no user database or account changed.
+- Verified application boot fails with IPAddr::InvalidAddressError for
+  `TRUSTED_PROXY_CIDRS=invalid-proxy`. Initial IP-spoof tests exposed Rails'
+  forwarded-address precedence even for untrusted peers; implemented and
+  tested an explicit direct-peer trust guard before using request.remote_ip.
+- Shared limiter tested using two SolidCache::Store instances against the
+  disposable SQLite database, including a blocked attempt near the end of the
+  window and successful reset without sliding expiry, not only a memory-store
+  substitute. Invalid
+  counter results raise explicitly. PostgreSQL/live deployment proxy topology
+  not tested in this unit; schema unchanged and deployment remains deferred.
+  Browser/CORS checks skipped: no frontend or CORS implementation changed.
+- `git diff --check` and relative documentation links passed. Updated README,
+  environment example, request collection and SPEC with actual login status,
+  provisioning command, proxy configuration and remaining stub behavior.
+- Commit checkpoint: nothing committed; stop before another implementation unit.
 
 ## Stage 3 selected unit: remaining models
 
@@ -269,7 +403,7 @@ configuration validation tests belong to the authorized scheduling work.
 Validation: `git diff --check` and exact environment-template value check passed.
 Runtime tests skipped: environment-template and documentation changes only.
 
-Except for completed BE-BOOK, these remain **Not started** as detailed
+Except for completed BE-BOOK/BE-AUTH and In progress BE-CRUD, these remain **Not started** as detailed
 business-logic units. Stage 3 is approved, but the user must select each
 session task; table order is not
 permission to choose or implement a unit automatically.
@@ -277,16 +411,17 @@ permission to choose or implement a unit automatically.
 | Task ID | Outcome | Requirements | Dependencies | Acceptance/checks to define or run |
 | --- | --- | --- | --- | --- |
 | BE-BOOK (Completed) | Books with opaque user_id, timestamps, nullable rating/review and model validations | BACKEND-1 | Structural schema | 10 new model tests pass; validation evidence and commit checkpoint above |
-| BE-AUTH | Admin-only account functionality on Users, one-time env provisioning, protected passwords, login and rate limit | BACKEND-2 | Existing User schema; approved auth/provisioning policy | Model/request tests; provisioning errors/idempotence policy, expiry, revocation, current-role checks, rate limit; manual login |
-| BE-CRUD | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | Request tests for every action, validation, missing records, 401/role rejection; manual CRUD |
+| BE-AUTH (Completed) | Admin-only account functionality on Users, one-time env provisioning, protected passwords, login and rate limit | BACKEND-2 | Existing User schema; approved auth/provisioning policy | Passing auth/provisioning integration tests and live HTTP smoke; evidence and commit checkpoint above |
+| BE-CRUD (In progress; listing complete) | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | Listing passes tests/live HTTP; detail/writes, missing records and manual CRUD remain |
 | BE-REVISION | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot contract; rank generation deferred | Pinned payloads, 24-hour expiry, eviction/410 recovery, refresh failure preserves current revision/checkpoint |
 | BE-SYNC | Incremental event reconciliation and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK, BE-REVISION; frontend rank contract for new events | First/incremental runs, identity preservation, finish correction/removal, inclusive replay, atomic watermark, failure monitoring/retry; document deferred concurrency risk |
 | BE-EVENTS | Complete date-span API, bounds, next cursor and restart errors | BACKEND-4 | BE-REVISION; API contract | Empty/dense spans, cross-span pairs, no omissions/duplicates, expiry/error integration tests |
-| BE-SEEDS | Idempotent staging books, embedded reviews and events | BACKEND-5 | BE-BOOK, BE-REVISION; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
+| BE-SEEDS (Completed; uncommitted) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
 | BE-CORS | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight and origin rejection integration tests |
 
 Structural contracts, deterministic fixtures and executable intended-behavior
-tests now exist; see Stage 2 baseline below. BE-BOOK is complete; other detailed
+tests now exist; see Stage 2 baseline below. BE-BOOK and BE-AUTH are complete;
+BE-CRUD listing is implemented; remaining detailed
 implementation tasks remain Not started and are not selected by Stage 3 approval alone.
 
 BE-REVIEW is superseded by embedded Books fields, not completed. Separate Admin

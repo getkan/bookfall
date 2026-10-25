@@ -1,6 +1,13 @@
 class BooksController < ApplicationController
+  before_action :require_admin
+
   def index
-    raise FeatureNotImplemented, "Admin book listing is reserved for Stage 3"
+    books = Book.order(:id).map do |book|
+      fields = %w[id user_id title author started_at finished_at]
+      fields.concat(%w[rating review]) if book.finished_at.present?
+      book.as_json(only: fields)
+    end
+    render json: { books: books }
   end
 
   def show
