@@ -1,175 +1,72 @@
-# Project roadmap
+# Deployment roadmap
 
-## Completed: Foundation
+## Delivery order and independent lifecycles
 
-Generated `backend/` (Rails 8.1.4 API-only) and `frontend/` (Next.js 16.4.2),
-added the root README and planning documents. Validated with `bin/rails test`
-(1 test), `npm run lint && npm run build`, and an HTTP 200 smoke check of the
-frontend. See `docs/TASKS.md` for the full validation record.
+Delivery order is BACKEND, FRONTEND, then DEPLOY. Each subproject has its own
+four-stage lifecycle and approvals; a delivery position is not a lifecycle
+stage. Frontend planning may use the backend contract before backend completion,
+but this document authorizes no parallel implementation or stage transitions.
 
-## Phase 1: Backend implementation and testing
+| ID | Outcome and owning roadmap | Current lifecycle stage | Status | Dependencies | Next approval |
+| --- | --- | --- | --- | --- | --- |
+| BACKEND | [Rails data and revision-pinned timeline API](backend/ROADMAP.md) | Stage 1: requirements restart | In progress | Shared timeline contract | Backend Stage 2, after open decisions |
+| FRONTEND | [Calendar-row timeline and collision-safe rendering](frontend/ROADMAP.md) | Stage 1: requirements restart | In progress | Shared layout; backend API contract and implementation | Frontend Stage 2, after open decisions |
+| DEPLOY | Staging and production deployment | Stage 1: deferred | Blocked | BACKEND and FRONTEND completed, including Stage 4 | Begin deployment planning after both complete |
 
-### Outcome
+Child roadmaps own their detailed scope, evidence, and approvals. The table is
+an index, not an independent source of approval.
 
-The Rails API stores admins, books, and reviews; serves paginated book events,
-book detail with review, and admin-authenticated book CRUD; seeds staging
-data; and is configured for SQLite locally and Neon Postgres in production.
+## DEPLOY lifecycle
 
-### Included work
+Requirements and acceptance: [Deployment SPEC](SPEC.md).
+Evidence and checkpoints: [Deployment TASKS](TASKS.md).
 
-- Models and migrations:
-  - `Admin` with `username` and `password_digest` (`has_secure_password`,
-    bcrypt) and `generates_token_for :api_access` (12-hour expiry, bound to
-    `password_salt`). A one-time rake task creates the single admin from
-    `ADMIN_USERNAME`/`ADMIN_PASSWORD` environment variables.
-  - `Book` with `reader`, `title`, `author`, `start_date`, nullable
-    `end_date`; validation that `end_date` is not before `start_date`.
-  - `Review` with `book_id`, `rating`, `review`; one review per book; no
-    write endpoint.
-- API endpoints:
-  - `GET /book-events` (public): cursor-paginated start/end events derived
-    from books, ordered by event date, each with `book_id`, type, date,
-    reader, title, author, plus `next_cursor`.
-  - `GET /books/:id` (admin): book with its review included only when
-    `end_date` is present.
-  - `POST /login`: admin authentication returning a bearer token.
-  - `GET/POST/PATCH/DELETE /books` (admin): CRUD. All `/books` routes require
-    `Authorization: Bearer <token>`.
-- `db/seeds.rb` with staging books and reviews, including in-progress and
-  overlapping books.
-- CORS configuration (`rack-cors`) allowing `FRONTEND_ORIGIN` with
-  `headers: :any` and no credentials.
-- Database configuration: add the `pg` gem for production; keep `sqlite3` for
-  development and test. Collapse production `database.yml` to a single
-  primary database read from `DATABASE_URL` with `prepared_statements: false`
-  and `advisory_locks: false`. Point Solid Cache at it; remove Solid Queue,
-  Solid Cable, and the Redis `cable.yml` entry.
-- Testing: model tests (validations, review-per-book, admin password, token
-  round-trip, expiry, revocation on password change), request tests for every
-  endpoint including cursor boundaries and last page, 401 on missing, invalid,
-  expired, and tampered tokens, review omitted for in-progress books, CORS
-  preflight headers, and a seeds test.
+### Stage 1: Understanding the problem
 
-### Dependencies and risks
+- Begin only after BACKEND and FRONTEND complete.
+- Confirm Vercel/Neon feasibility, environment isolation, staging branch and
+  aliases, migration permissions, update and rollback requirements.
+- Exit: deployment constraints, measurable acceptance, and platform decisions
+  are explicit; blockers are resolved.
+- Approval: not granted. Stop for DEPLOY Stage 2 approval.
 
-- Production config can only be smoke-tested locally against a Postgres
-  container, not against Neon, until Phase 3.
-- `FRONTEND_ORIGIN` for staging depends on a stable Vercel preview alias
-  (Phase 3 open item).
-- Rate limiting on `/login` is deferred to Phase 3 readiness.
+### Stage 2: High-level design and implementation
 
-### Exit criteria
+- Design container/runtime configuration, environment mapping, migration
+  workflow, and rollback; create structural files and disposable smoke tests.
+- Exit: architecture, skeletons, deterministic test data, and executable
+  deployment integration baseline exist. Record exact expected-red cases;
+  harness failures and unrelated regressions block exit.
+- Approval: not granted. Stop for DEPLOY Stage 3 approval.
 
-- `bin/rails test` passes on SQLite with coverage for all models, all
-  endpoints, authentication, and seeds.
-- `RAILS_ENV=production DATABASE_URL=<local postgres> bin/rails runner
-  'ActiveRecord::Base.connection.execute("select 1")'` succeeds.
-- `bin/rails db:seed` loads the staging data without error and is idempotent.
+### Stage 3: Detailed design and implementation
 
-### Validation
+- Implement user-selected deployment configuration units and validate each.
+- Provisioning and actual deployment require separate explicit authorization,
+  even when configuration implementation is approved.
+- Exit: selected scope passes image, migration, environment-isolation, and
+  application smoke checks; update and rollback instructions are recorded.
+- Stop at each commit checkpoint and then for DEPLOY Stage 4 approval.
 
-- Automated: `bin/rails test`; `bin/rubocop`; `bin/brakeman`.
-- Manual: `curl` each endpoint locally, including a login followed by an
-  authenticated create and an unauthenticated create that is rejected.
+### Stage 4: Review and pull-request preparation
 
-## Phase 2: Frontend implementation and testing
+- Review the entire deployment change against its verified base; run required
+  backend, frontend, image, migration, and end-to-end gates.
+- Exit: findings resolved; exact checks, manual environment evidence, skipped
+  checks, residual risks, and PR summary recorded. No expected-red exception.
+- Stop for handoff; publication and deployment need explicit authorization.
 
-### Outcome
+## Historical foundation
 
-The Next.js page renders the shared club timeline from the API with start and
-end labels separated by a height proportional to elapsed days, adjustable by a
-slider.
+Rails and Next.js scaffolding and local production Postgres configuration
+were completed before the planning restart. Preserve their existing evidence
+in [Backend TASKS](backend/TASKS.md) and
+[Frontend TASKS](frontend/TASKS.md); do not repeat scaffolding or infer
+completed feature lifecycles from that foundation.
 
-### Included work
+## Change record
 
-- Fetch book events from `GET /book-events` using a configurable base URL,
-  with continuous scrolling: load the next page as the user nears the end of
-  loaded content and append it; pair start and end events by `book_id`.
-- Render each book's start label (`Reader - start_date` /
-  `Title by Author`) and end label (`Reader - end_date` / `Title by Author`),
-  with the gap from the bottom of the start label to the top of the end label
-  equal to `elapsed_days * pixels_per_day`.
-- In-progress books (no end date) render only the start label.
-- Slider controlling `pixels_per_day`, defaulting to
-  `(viewport_height / 2) / 14` on load.
-- Component tests for label text, gap computation, in-progress handling,
-  event pairing across page boundaries, continuous-scroll loading, and the
-  slider default.
-
-### Dependencies and risks
-
-- Depends on the Phase 1 `/book-events` contract and pagination style.
-- An end event may arrive in a later page than its start event; the layout
-  must handle a start without a yet-loaded end.
-- Overlapping books have no agreed visual treatment; the layout must
-  degrade without breaking.
-- Slider range and persistence are undecided; use a sensible range and no
-  persistence until decided.
-
-### Exit criteria
-
-- Page renders seeded books with labels in the agreed format and measured
-  gaps matching the formula.
-- Scrolling to the end of loaded content loads the next page until the API
-  reports no more pages.
-- Moving the slider rescales gaps; in-progress books show one label.
-- `npm run lint`, `npm run build`, and the component tests pass.
-
-### Validation
-
-- Automated: `npm run lint && npm run build && npm test`.
-- Manual: browser check that scrolling reveals end labels and loads further
-  pages, gap heights scale with elapsed days, and the slider changes the
-  scale.
-
-## Phase 3: Vercel deployment
-
-### Outcome
-
-Both apps deploy to Vercel with a Production environment from `main` and a
-staging environment on Vercel Preview, backed by Neon Postgres with a branch
-per environment, and migrations run from GitHub Actions.
-
-### Included work
-
-- `backend/Dockerfile.vercel` running Puma on `$PORT` with `libpq5`, no
-  Thruster, and no migration on boot (`bin/docker-entrypoint` adjusted).
-- `backend/vercel.json` for container-image functions; Rails Vercel project
-  with root directory `backend/`; Next.js Vercel project with root directory
-  `frontend/`.
-- Neon store connected to the Rails project; env vars (`DATABASE_URL`,
-  `DATABASE_URL_UNPOOLED`, `RAILS_MASTER_KEY`, `RAILS_MAX_THREADS`,
-  `FRONTEND_ORIGIN`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`) scoped
-  separately to Preview and Production. Frontend API base URL scoped per
-  environment.
-- GitHub Actions workflow running `bin/rails db:migrate` against the unpooled
-  URL for the matching environment on pushes to `main` and the staging
-  branch, plus `db:seed` for staging.
-- README deployment section.
-
-### Dependencies and risks
-
-- Requires a Neon store and both Vercel projects created in the dashboard,
-  and repository secrets for the workflow.
-- Deploy and migrate are not atomic; schema changes must be backward
-  compatible with the previously deployed code.
-- Vercel container docs must be confirmed for the `vercel.json` schema and
-  the Neon integration's env var names.
-- Staging branch name and stable domain alias are undecided.
-
-### Exit criteria
-
-- `Dockerfile.vercel` image boots locally with `PORT` set and `/up` returns
-  200 against a Postgres `DATABASE_URL`.
-- Staging (preview) and production deployments of both apps succeed; the
-  frontend renders records from its matching API environment.
-- Migration workflow completes with `db:migrate:status` showing all
-  migrations up in both environments.
-
-### Validation
-
-- Automated: `docker build -f Dockerfile.vercel`; workflow run on the staging
-  branch and on `main`.
-- Manual: `curl` local container and deployed `/up` endpoints; load the
-  staging and production frontends; inspect Vercel logs for connection
-  errors.
+- 2026-10-24: Restart requirements planning with separate BACKEND and FRONTEND
+  lifecycles; defer DEPLOY until both are complete. Preserve foundation history.
+- 2026-10-24: Replace the event-count/proportional-gap/slider plan with the
+  accepted calendar-row, rank/revision, and date-range layout design.

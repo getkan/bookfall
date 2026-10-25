@@ -7,17 +7,21 @@ finished each book they have read.
 
 - The main page displays, for each book, when a reader began it and, further
   down the page, when they finished it.
-- The vertical distance between a book's start and end markers is proportional
-  to the time elapsed between those dates, so longer reads take more room on
-  the page as you scroll.
+- The timeline uses calendar-day rows with fixed-size event labels. Empty
+  days have uniform height; event types and collision stacking can expand a
+  day's row. Rank-based columns keep event pairs associated, with spill/stack
+  resolution to prevent label overlap. There is no pixels-per-day slider.
 - The site is built with a Rails API backend and a Next.js/React frontend and
-  is deployed to Vercel. The Next.js frontend deploys natively; the Rails API
-  deploys as a container image on Vercel Functions using a `Dockerfile.vercel`
+  targets Vercel after both subprojects are completed. The proposed Next.js
+  deployment is native; the proposed Rails API deployment is a container
+  image on Vercel Functions using a `Dockerfile.vercel`
   (see [Vercel's Rails guide](https://vercel.com/kb/guide/does-vercel-support-ruby-on-rails-applications)
   and [container images](https://vercel.com/docs/functions/container-images)).
 
-Product details beyond the goals above are still being defined; see
-[docs/SPEC.md](docs/SPEC.md).
+Product details are being re-established in the
+[backend specification](docs/backend/SPEC.md) and
+[frontend specification](docs/frontend/SPEC.md), using the accepted
+[timeline layout](docs/BOOKEVENT_TIMELINE_LAYOUT_PLAN.md).
 
 ## Stack
 
@@ -69,9 +73,17 @@ npm run lint
 npm run build
 ```
 
-See [docs/SPEC.md](docs/SPEC.md) for known requirements and unresolved product
-decisions, [docs/ROADMAP.md](docs/ROADMAP.md) for delivery phases, and
-[docs/TASKS.md](docs/TASKS.md) for current work.
+## Planning documents
+
+| Subproject | Requirements | Lifecycle and approvals | Tasks and validation |
+| --- | --- | --- | --- |
+| Backend | [SPEC](docs/backend/SPEC.md) | [ROADMAP](docs/backend/ROADMAP.md) | [TASKS](docs/backend/TASKS.md) |
+| Frontend | [SPEC](docs/frontend/SPEC.md) | [ROADMAP](docs/frontend/ROADMAP.md) | [TASKS](docs/frontend/TASKS.md) |
+| Deployment, after both complete | [SPEC](docs/SPEC.md) | [ROADMAP](docs/ROADMAP.md) | [TASKS](docs/TASKS.md) |
+
+Backend and frontend each restart at requirements planning (Stage 1) and retain
+their completed foundation history. Every subproject has independent stage
+approvals. The top-level documents cover deployment, not application tasks.
 
 ## Learning resources
 
