@@ -3,8 +3,8 @@
 ## Current scope and session
 
 - ID: **BACKEND**; [SPEC](SPEC.md), [ROADMAP](ROADMAP.md).
-- Lifecycle: Stage 3 detailed design/implementation, **Completed**;
-  awaiting user approval for Stage 4 feature-wide review.
+- Lifecycle: Stage 4 feature-wide review, **Completed**; approved by the user
+  on 2026-10-24. Review remediation validated; awaiting commit/handoff.
 - Stage 2: **Completed**, accepted by the user on 2026-10-24 after the
   reviewed architecture, skeleton and expected-red contract checkpoint.
 - Stage 3 approval: granted on 2026-10-24. BE-BOOK and remaining model work
@@ -24,6 +24,72 @@
 - FRONTEND remains Stage 1; DEPLOY remains blocked. No commit or publication
   is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
+
+## Stage 4 review and provisioning remediation
+
+**Completed (2026-10-24), uncommitted remediation** — BACKEND.
+
+- User approved Stage 4 after Stage 3 acceptance, then authorized fixing the
+  provisioning race and updating review status. Feature base `74fb80f` was
+  verified as an ancestor of review HEAD `30b11d7`; read-only feature-wide
+  review covered committed backend implementation, contracts, tests and
+  operating procedures. No repository-defined automated review command or PR
+  template was found.
+- Finding resolved: concurrent `admin:provision` calls could both observe an
+  empty admin set. AdminProvisioning now locks before either existence check:
+  PostgreSQL `LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE`, SQLite a no-op
+  UPDATE obtaining the transaction's write lock. Transaction-scoped locks
+  release on commit/rollback; no session advisory locks, new schema or
+  single-admin constraint restrict future account design. Unsupported adapters
+  fail explicitly. Existing refusal/error/password semantics remain unchanged.
+- Added `admin_provisioning_concurrency_test.rb`: nontransactional test with
+  independent connections, synchronized starts and a delayed INSERT widens
+  the race window. Exactly one success, one explicit existing-admin refusal
+  and one persisted admin are required. Test cleans up its users and workers.
+- Regression evidence: a session-only fault-injection shim suppressed only the
+  PostgreSQL lock. The new test then failed with **two successful creations**.
+  An initial shim failed adapter loading; after correcting that harness issue,
+  the expected assertion failure reproduced. Repository code was not altered
+  for injection. Three subsequent locked PostgreSQL repetitions passed.
+- Validation (Ruby 3.4.11, disposable Docker databases):
+  - `bin/rails db:prepare`: passed on SQLite/PostgreSQL.
+  - `bin/rails test test/integration/admin_provisioning_test.rb test/integration/admin_provisioning_concurrency_test.rb`:
+    **6 tests/33 assertions**, passed on both adapters (SQLite initially before
+    adding the delayed-INSERT instrumentation; final full suite covers it).
+  - `bin/rails test`: **124 tests/1,625 assertions**, zero failures/errors/skips
+    on both SQLite and PostgreSQL.
+  - `bin/rails zeitwerk:check`: passed.
+  - `bin/rubocop`: **61 files**, no offenses.
+  - `bin/bundler-audit`: no vulnerabilities.
+  - `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+    zero errors/warnings.
+  - `bin/rails db:seed:replant`, `bin/rails book_events:sync`: passed on both.
+  - `git diff --check`: passed for remediation.
+- Direct remediation review confirmed lock-before-read ordering, shared
+  transaction boundaries, exception propagation and connection-isolated tests.
+  PostgreSQL container/volume/network removed. Prior production-configured
+  migration/cache and HTTP acceptance remains applicable; no HTTP interface or
+  schema changed. Evidence: session `admin-race-*.log` and Stage 4 gate logs.
+- Historical hygiene exception: `git diff 74fb80f...HEAD --check` flags
+  `backend/requests.http:8` trailing whitespace. This user-committed collection
+  remains untouched per prior direction; do not claim a clean feature-base
+  whitespace check. Lifecycle approval/status text is now reconciled.
+
+### Handoff / PR summary (not published)
+
+- Scope: model constraints; admin provisioning/login/token/rate limiting;
+  protected book CRUD; randomized paired event ranks; incremental sync and
+  atomic Solid Cache publication; immutable revision/date-span timeline;
+  Books-only seeds; configured-origin CORS; complete cross-adapter acceptance.
+- Review result: actionable provisioning finding resolved with demonstrated
+  regression coverage; complete local gate passes. Remediation is uncommitted.
+- Residual risks: advanced sync overlap/concurrent writes and scheduler
+  infrastructure remain deferred. Nested backend CI workflow discoverability
+  is inherited, not repaired here. Optional libvips warning is unrelated to
+  implemented API behavior. Browser layout, Neon/Vercel/deployment were not
+  tested or authorized; FRONTEND stays Stage 1 and DEPLOY remains blocked.
+- Stop for commit/handoff. No commit, push, PR creation, frontend stage
+  transition or deployment is authorized by this completion.
 
 ## Stage 3 selected unit: PostgreSQL acceptance
 
@@ -728,8 +794,8 @@ Validation: `git diff --check` and exact environment-template value check passed
 Runtime tests skipped: environment-template and documentation changes only.
 
 All selected Stage 3 implementation units and cross-adapter acceptance are
-complete. Stage 4 feature-wide review remains unstarted pending explicit user
-approval; table order does not authorize stage advancement.
+complete. Stage 4 was explicitly approved, reviewed and remediated; evidence
+and the uncommitted handoff checkpoint are above.
 
 | Task ID | Outcome | Requirements | Dependencies | Acceptance/checks to define or run |
 | --- | --- | --- | --- | --- |
@@ -741,12 +807,13 @@ approval; table order does not authorize stage advancement.
 | BE-EVENTS (Completed; ae169ef) | Complete date-span API, bounds, next cursor and restart errors; joined Book fields/rating, never review | BACKEND-4 | BE-REVISION; API contract | Timeline and joined-field contracts pass; live pagination/refresh walkthrough passes |
 | BE-SEEDS (Completed; ae58b2d) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
 | BE-CORS (Completed; aecc469) | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight, origin rejection, unchanged auth and full SQLite/PostgreSQL gates pass |
-| BE-ACCEPTANCE (Completed; evidence uncommitted) | Disposable PostgreSQL acceptance | BACKEND-1/2/3/4/5/6 | Completed implementation units | Full 123-test suite, fresh production-configured migrations, Solid Cache and live cross-process HTTP walkthrough pass |
+| BE-ACCEPTANCE (Completed; 30b11d7) | Disposable PostgreSQL acceptance | BACKEND-1/2/3/4/5/6 | Completed implementation units | Full suite, fresh production-configured migrations, Solid Cache and live cross-process HTTP walkthrough pass |
+| BE-FINAL-REVIEW (Completed; remediation uncommitted) | Feature-wide review and provisioning race fix | BACKEND-1/2/3/4/5/6 | Stage 4 approval, complete Stage 3 acceptance | Base review, reproduced/fixed race and full 124-test SQLite/PostgreSQL gate; handoff evidence above |
 
 Structural contracts, deterministic fixtures and executable intended-behavior
 tests now exist; see Stage 2 baseline below. All implementation units and
-PostgreSQL acceptance are complete; feature-wide Stage 4 review requires
-separate approval.
+PostgreSQL acceptance and approved Stage 4 review are complete; commit/handoff
+remains separate from publication authorization.
 
 BE-REVIEW is superseded by embedded Books fields, not completed. Separate Admin
 model and date-only schema tasks are superseded too. Rank assignment is

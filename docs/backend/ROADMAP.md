@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 3: detailed design and implementation | Completed; SQLite/PostgreSQL acceptance passed | Evidence commit checkpoint; Stage 4 not started | User approval for Stage 4 feature-wide review |
+| BACKEND | Stage 4: review and handoff | Completed; review finding remediated, SQLite/PostgreSQL gates pass | Remediation commit checkpoint | Explicit commit/publication authorization |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -77,6 +77,11 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 
 ### Stage 4: Review and pull-request preparation
 
+- Approved by the user on 2026-10-24. Completed feature-wide base review against
+  `74fb80f`; provisioning race identified, authorized remediation implemented
+  with concurrent-call regression evidence. Full suites pass on SQLite and
+  PostgreSQL: 124 tests/1,625 assertions. Handoff summary and exceptions are
+  recorded in TASKS; remediation remains uncommitted.
 - Review the entire subproject against its verified base, including committed
   tasks and worktree changes; run the complete relevant local/integration gate.
 - Exit: acceptance, auth/security, pagination consistency, and compatibility

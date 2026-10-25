@@ -233,6 +233,9 @@ Stage 3 tests.
   detail/list. Broader public detail remains an unapproved scope change.
 - Unique usernames, one-time environment-driven admin provisioning, and the
   login rate-limit policy are approved; ordinary-user workflows remain out of scope.
+  Provisioning serializes the initial-admin check/create transaction: a
+  PostgreSQL table lock or SQLite write lock is acquired before checking,
+  including when Users is empty. Concurrent calls cannot provision two admins.
 - Thirty-day spans, immutable cache revisions retained up to 24 hours,
   early eviction with explicit 410 recovery, and direct-browser CORS access
   are approved. Detailed contracts below are canonical.

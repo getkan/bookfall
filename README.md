@@ -181,8 +181,8 @@ npm run build
 | Frontend | [SPEC](docs/frontend/SPEC.md) | [ROADMAP](docs/frontend/ROADMAP.md) | [TASKS](docs/frontend/TASKS.md) |
 | Deployment, after both complete | [SPEC](docs/SPEC.md) | [ROADMAP](docs/ROADMAP.md) | [TASKS](docs/TASKS.md) |
 
-Backend Stages 2 and 3 are complete; implementation and SQLite/PostgreSQL
-acceptance pass. Stage 4 feature-wide review awaits approval; frontend remains
+Backend implementation, SQLite/PostgreSQL acceptance and approved Stage 4
+feature-wide review are complete; remediation awaits commit/handoff. Frontend remains
 in requirements planning (Stage 1).
 Both retain completed foundation history. Backend timeline pagination,
 explicit cache publication and sync event projection are implemented.
@@ -195,8 +195,9 @@ requires it, while development/test default to `http://localhost:3000`.
 Invalid values stop application boot. Restart Rails after changing this setting.
 CORS does not replace admin authentication.
 The full backend suite passes on SQLite and disposable PostgreSQL 17.11
-(123 tests/1,619 assertions), along with production-configured migrations,
-cache checks and a live HTTP walkthrough. Feature-wide review remains pending. See
+(124 tests/1,625 assertions), along with production-configured migrations,
+cache checks and a live HTTP walkthrough. Initial-admin provisioning serializes
+concurrent calls before checking/creating an admin. See
 [backend validation evidence](docs/backend/TASKS.md) for disposable checks.
 Every subproject has independent approvals. The top-level documents cover
 deployment, not application tasks.
