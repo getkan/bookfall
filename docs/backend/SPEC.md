@@ -131,6 +131,47 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
   disallowed origins and Authorization preflight. Confirm direct-browser
   versus Next.js-proxy access jointly with FRONTEND.
 
+### BACKEND-6: Scheduled incremental BookEvents synchronization
+
+- An externally scheduled rake task selects Books changed by `updated_at`
+  since its last successful processing checkpoint and reconciles BookEvents.
+  Include newly created books and process all books on the first run.
+- Add Books `created_at` and `updated_at`, maintained by Rails, and an index
+  on `(updated_at, id)` for deterministic incremental selection.
+- `task_checkpoints` stores one row per task name, with a nullable
+  `processed_through` watermark separate from attempt start/finish times.
+  Advance the watermark only after successful reconciliation/publication,
+  not merely because a scheduled attempt began.
+- Monitoring fields: last_started_at, last_finished_at, last_succeeded_at,
+  status (idle/running/succeeded/failed), books_processed, last_error,
+  extensible JSON metadata, and row created_at/updated_at.
+- Rake entry point: `bin/rails book_events:sync`, delegating to
+  `BookEventSync.call`. Stage 2 provides explicit failing stubs, not a scheduler
+  or business logic. Deployment owns invocation infrastructure and must read
+  `BOOK_EVENTS_SYNC_INTERVAL_SECONDS`, a positive integer in seconds with
+  default `600` (10 minutes), documented in the backend environment template.
+  Invalid values must fail explicitly when scheduling is configured, not
+  silently revert to the default. The variable controls invocation frequency,
+  not the changed-books query window. No background worker is added; the
+  current skeleton does not consume the variable or start a scheduler.
+  The freshness target beyond invocation frequency remains undecided.
+- Stage 3 must handle retries idempotently, preserve existing event identities,
+  reconcile changed/removed finish timestamps, serialize competing task runs,
+  and expose failures without advancing the successful watermark. Store
+  sanitized operational error information, not credentials or book reviews.
+- A naive `updated_at > last_finished_at` query can lose edits. Stage 3 must
+  define a captured processing bound, inclusive boundary replay, and a tested
+  policy for concurrent/uncommitted book writes; advancing to wall-clock run
+  completion is not a safe checkpoint. Event updates and watermark advancement
+  must be atomic; failed-attempt monitoring must survive rollback.
+- Hard-deleted books cannot be discovered through Books.updated_at. Retain
+  dependent event removal on deletion; design snapshot invalidation/deletion
+  reconciliation explicitly. Scheduled publication supersedes the earlier
+  implication that all event synchronization runs inside each HTTP write.
+- Rank assignment is still deferred. No sync allocator or arbitrary rank default
+  is authorized; first-run generation remains dependent on the eventual rank
+  contract. Fixtures have explicit test ranks, not an approved algorithm.
+
 ## Environment baseline
 
 Foundation baseline: Rails 8.1.4 in [Gemfile](../../backend/Gemfile), Ruby 3.4.11
@@ -245,6 +286,9 @@ not advance. Stage 3 business logic is not authorized.
 - `StagingSeeds.load!`: idempotent staged-data loader contract with explicit
   stub failure. Deterministic YAML books/events are executable test fixtures
   now; Stage 3 implements loading/synchronization. No admin secrets in seeds.
+- `TaskCheckpoint` and `BookEventSync.call`: scheduled incremental projection
+  boundary described in BACKEND-6. The new table is operational state, not a
+  fourth user-facing resource; no management endpoint is added.
 - Rank assignment stays owned by frontend implementation. Fixtures contain
   explicit ranks to test the accepted storage/pair contract, not an algorithm.
   Rank-dependent live mutation/publication remains a named cross-project

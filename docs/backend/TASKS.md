@@ -34,6 +34,48 @@ seed/test data, and intended API integration tests.
 
 ## Carried-forward high-level work
 
+**BE-SYNC-SKELETON — Completed (Stage 2 structural unit only):** BACKEND-6.
+Add Books timestamps/index, task checkpoint monitoring table/model,
+`book_events:sync` rake/service stub, and structural/intended-behavior tests.
+No scheduling infrastructure or reconciliation logic is implemented.
+Stage 3 BE-SYNC depends on rank contract, concurrent-write/watermark policy,
+retry/failure handling and snapshot publication. Required cases include first
+run, changed/unchanged books, finish correction/removal, inclusive time-boundary
+replay, failed runs, concurrent writes/runs and hard deletion.
+
+Validation (Ruby 3.4 Docker command prefix in the baseline section, disposable
+SQLite DATABASE_URL `sqlite3:/tmp/bookfall-sync.sqlite3`):
+
+- `bin/rails db:migrate && bin/rails test
+  test/models/backend_structure_test.rb test/models/task_checkpoint_structure_test.rb
+  test/integration/backend_skeleton_test.rb test/integration/health_check_test.rb
+  && bin/rails zeitwerk:check && bin/rubocop`: passed, **12 tests / 62 assertions**,
+  autoload good, **44 files / no offenses**.
+- Same migrations/structural tests on disposable `postgres:17-alpine`:
+  **12 tests / 62 assertions passed**. Task-specific container
+  `bookfall-sync-pg-7d66451e` stopped/removed automatically; no published ports.
+  Postgres schema dump directed to container `/tmp`, preserving SQLite schema.
+- `bin/rails db:migrate && bin/rails test`: **24 tests / 71 assertions**,
+  **9 expected failures / 3 expected errors / 0 skips**. The prior baseline's
+  nine HTTP 501 failures and seed stub error are unchanged. Two additional
+  errors are exactly BookEventSync's explicit unimplemented exception, one
+  through the service and one through the real rake entry point.
+- Database tests cover independent watermark/monitoring timestamps, task-name
+  uniqueness, status/count constraints and automatic Book updated_at behavior.
+- `git diff --check`: passed. No Stage 3 implementation or live scheduler added;
+  no unrelated in-progress skeleton changes reverted.
+
+Stop at this Stage 2 checkpoint. Watermark concurrency policy and
+rank-dependent generation remain review items; no Stage 3 approval or commit.
+
+2026-10-24 interval decision: `BOOK_EVENTS_SYNC_INTERVAL_SECONDS=600` added to
+`backend/.env.example`. Future scheduling must use a positive integer in seconds,
+defaulting to 600 (10 minutes); reject invalid configuration explicitly.
+No scheduler is running or consuming the setting yet. Scheduler wiring and
+configuration validation tests belong to the authorized scheduling work.
+Validation: `git diff --check` and exact environment-template value check passed.
+Runtime tests skipped: environment-template and documentation changes only.
+
 These remain **Not started** as detailed business-logic units, pending design
 review, Stage 3 approval, and user task selection. They are
 planning outcomes, not permission to implement the old task order.
@@ -134,6 +176,27 @@ need confirmation before affected Stage 3 logic. No Stage 3 task or commit
 authorized. Stop for review, Stage 3 approval and user task selection.
 
 ## Validation and commit checkpoint
+
+- 2026-10-24: User explicitly requested review and commit of the pending
+  Stage 2 changes. Review found no blocking skeleton defect. The generated
+  workflow under `backend/.github/workflows/` is not discoverable by GitHub;
+  this is pre-existing and unchanged, reserved for deployment/CI work.
+- Review validation rerun in the documented Ruby container:
+  `bin/rails db:migrate` followed by the structural/route/health selection:
+  **12 tests / 62 assertions passed**; `bin/rails zeitwerk:check` passed;
+  `bin/rubocop`: **44 files, no offenses**;
+  `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+  **0 warnings/errors**; `bin/bundler-audit`: **no vulnerabilities found**.
+- Full `bin/rails test` rerun: **24 tests / 71 assertions / 9 failures /
+  3 errors / 0 skips**, matching the documented expected-red baseline exactly.
+  This commit is a Stage 2 checkpoint, not a green full-suite, merge, release,
+  or Stage 3 readiness claim. `bin/ci` setup/seed/full-test steps cannot pass
+  while the documented stubs remain; assertions/gates were not weakened.
+- Postgres structural validation remains the recorded 12-test/62-assertion
+  pass from the same unchanged schema; not rerun during this review.
+  Frontend/browser/live deployment checks skipped: no relevant runtime changes
+  or deployment authorization. `git diff --check` passed.
+- Commit authorization does not authorize Stage 3 work or publication.
 
 - Planned full gate from `backend/`: `bin/rails test`,
   `bin/rails zeitwerk:check`, `bin/rubocop`, `bin/brakeman`.

@@ -1,0 +1,2 @@
+class TaskCheckpoint < ApplicationRecord
+end

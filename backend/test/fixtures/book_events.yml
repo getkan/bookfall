@@ -1,0 +1,1 @@
+<%= ERB.new(File.read(Rails.root.join("db/seeds/book_events.yml"))).result %>

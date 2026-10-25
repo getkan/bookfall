@@ -82,3 +82,10 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 - 2026-10-24: Stage 2 authorized; `user_id` confirmed as a nullable string
   placeholder, superseding foreign-key ownership. Added structural skeleton
   and expected-red contract coverage without Stage 3 business logic.
+- 2026-10-24: Add BACKEND-6: externally scheduled incremental event sync,
+  Books timestamps, task checkpoint/monitoring table, rake/service skeleton,
+  and executable expected-red contracts. Concurrent-write safety requires
+  design; no Stage 3 or deployment authorization implied.
+- 2026-10-24: Configure future scheduling through
+  `BOOK_EVENTS_SYNC_INTERVAL_SECONDS`, default 600 seconds (10 minutes).
+  Environment template added; runtime scheduling remains deferred.

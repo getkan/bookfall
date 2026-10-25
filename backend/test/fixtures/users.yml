@@ -1,0 +1,5 @@
+admin:
+  id: 1
+  username: fixture-admin
+  password_digest: <%= BCrypt::Password.create("fixture-only-password", cost: BCrypt::Engine::MIN_COST) %>
+  is_admin: true

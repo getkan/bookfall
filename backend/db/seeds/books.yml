@@ -1,0 +1,38 @@
+completed:
+  id: 101
+  user_id:
+  title: A Long Reading
+  author: Example Author
+  started_at: "2026-01-01T12:00:00Z"
+  finished_at: "2026-04-01T12:00:00Z"
+  rating: 5
+  review: A thoughtful read.
+unfinished:
+  id: 102
+  user_id: future-reader
+  title: Still Reading
+  author: Another Author
+  started_at: "2026-01-02T23:30:00Z"
+  finished_at:
+  rating:
+  review:
+same_day:
+  id: 103
+  user_id:
+  title: One Day
+  author: Example Author
+  started_at: "2026-01-03T08:00:00Z"
+  finished_at: "2026-01-03T20:00:00Z"
+  rating:
+  review:
+<% 14.times do |index| %>
+dense_<%= index %>:
+  id: <%= 200 + index %>
+  user_id:
+  title: Dense Date <%= index %>
+  author: Fixture Author
+  started_at: "2026-01-04T12:00:00Z"
+  finished_at:
+  rating:
+  review:
+<% end %>
