@@ -1,0 +1,125 @@
+# VS Code REST Client request collection.
+# Start Rails on port 3001; send requests individually, not as a batch.
+# Set ADMIN_USERNAME and ADMIN_PASSWORD in the REST Client process environment.
+# Do not paste real credentials or tokens into this tracked file.
+# Product endpoints currently return 501 until their Stage 3 implementation.
+@baseUrl = http://localhost:3001
+@username = {{$processEnv ADMIN_USERNAME}}
+@password = {{$processEnv ADMIN_PASSWORD}}
+@token = {{login.response.body.$.token}}
+@bookId = {{createBook.response.body.$.book.id}}
+
+### Health check (200)
+GET {{baseUrl}}/up
+
+### Login (200); run before authenticated requests
+# @name login
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### List books (200)
+GET {{baseUrl}}/books
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Create a disposable in-progress book (201); run once per CRUD walkthrough
+# @name createBook
+POST {{baseUrl}}/books
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "book": {
+    "user_id": null,
+    "title": "HTTP walkthrough",
+    "author": "Test Author",
+    "started_at": "2026-01-01T12:00:00Z",
+    "finished_at": null,
+    "rating": null,
+    "review": null
+  }
+}
+
+### Read the created book (200); unfinished reads omit rating and review
+GET {{baseUrl}}/books/{{bookId}}
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Complete and review the created book (200)
+PATCH {{baseUrl}}/books/{{bookId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "book": {
+    "finished_at": "2026-04-01T12:00:00Z",
+    "rating": 4,
+    "review": "Disposable manual API test."
+  }
+}
+
+### Invalid rating on the created book (422 validation_failed)
+PATCH {{baseUrl}}/books/{{bookId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "book": {
+    "rating": 6
+  }
+}
+
+### Missing authentication (401 unauthorized)
+GET {{baseUrl}}/books
+Accept: application/json
+
+### Timeline first page (200); public, no authentication
+# @name timeline
+GET {{baseUrl}}/book-events
+Accept: application/json
+
+### Timeline continuation (200); send only if timeline.next_cursor is non-null
+# Copy each continuation's next_cursor to browse further.
+GET {{baseUrl}}/book-events?cursor={{timeline.response.body.$.next_cursor}}
+Accept: application/json
+
+### Forward anchor (200); includes the whole January 4 UTC day
+# Encode the positive timezone offset's plus sign as %2B.
+GET {{baseUrl}}/book-events?after=2026-01-05T01:00:00%2B02:00
+Accept: application/json
+
+### Backward anchor (200); includes the whole April 1 UTC day
+# @name backwardTimeline
+GET {{baseUrl}}/book-events?before=2026-04-01T12:00:00Z
+Accept: application/json
+
+### Backward continuation (200); only if backwardTimeline.next_cursor is non-null
+GET {{baseUrl}}/book-events?cursor={{backwardTimeline.response.body.$.next_cursor}}
+Accept: application/json
+
+### Conflicting anchors (400 invalid_parameters)
+GET {{baseUrl}}/book-events?before=2026-04-01T12:00:00Z&after=2026-01-01T12:00:00Z
+Accept: application/json
+
+### Missing timestamp timezone (400 invalid_timestamp)
+GET {{baseUrl}}/book-events?after=2026-01-01T12:00:00
+Accept: application/json
+
+### Malformed cursor (400 invalid_cursor)
+GET {{baseUrl}}/book-events?cursor=invalid
+Accept: application/json
+
+### Delete only the book created above (204); run last
+# Also removes its associated events; existing pinned revisions stay immutable.
+DELETE {{baseUrl}}/books/{{bookId}}
+Authorization: Bearer {{token}}
+Accept: application/json

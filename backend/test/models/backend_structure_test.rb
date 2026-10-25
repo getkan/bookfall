@@ -58,7 +58,7 @@ class BackendStructureTest < ActiveSupport::TestCase
       end
     end
     assert_raises ActiveRecord::RecordNotUnique do
-      book_events(:completed_start).reload.dup.save!
+      book_events(:completed_start).reload.dup.save!(validate: false)
     end
   end
 end

@@ -19,16 +19,16 @@ class TaskCheckpointStructureTest < ActiveSupport::TestCase
     TaskCheckpoint.create!(name: "book_events_sync")
     assert_raises ActiveRecord::RecordNotUnique do
       TaskCheckpoint.transaction(requires_new: true) do
-        TaskCheckpoint.create!(name: "book_events_sync")
+        TaskCheckpoint.new(name: "book_events_sync").save!(validate: false)
       end
     end
     assert_raises ActiveRecord::StatementInvalid do
       TaskCheckpoint.transaction(requires_new: true) do
-        TaskCheckpoint.create!(name: "invalid", status: "unknown")
+        TaskCheckpoint.new(name: "invalid", status: "unknown").save!(validate: false)
       end
     end
     assert_raises ActiveRecord::StatementInvalid do
-      TaskCheckpoint.create!(name: "negative", books_processed: -1)
+      TaskCheckpoint.new(name: "negative", books_processed: -1).save!(validate: false)
     end
   end
 

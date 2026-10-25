@@ -9,7 +9,7 @@ but this document authorizes no parallel implementation or stage transitions.
 
 | ID | Outcome and owning roadmap | Current lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- | --- |
-| BACKEND | [Rails data and revision-pinned timeline API](backend/ROADMAP.md) | Stage 2: architecture and skeleton | In progress | Frontend-owned rank assignment deferred | Backend Stage 3 after design/baseline review |
+| BACKEND | [Rails data and revision-pinned timeline API](backend/ROADMAP.md) | Stage 3: detailed design and implementation | In progress; BE-BOOK completed | Frontend-owned rank assignment deferred | Backend Stage 4 after implementation and acceptance |
 | FRONTEND | [Calendar-row timeline and collision-safe rendering](frontend/ROADMAP.md) | Stage 1: requirements restart | In progress | Shared layout; backend API contract and implementation | Frontend Stage 2, after open decisions |
 | DEPLOY | Staging and production deployment | Stage 1: deferred | Blocked | BACKEND and FRONTEND completed, including Stage 4 | Begin deployment planning after both complete |
 
@@ -72,3 +72,5 @@ completed feature lifecycles from that foundation.
   accepted calendar-row, rank/revision, and date-range layout design.
 - 2026-10-24: User authorized BACKEND Stage 2. FRONTEND remains Stage 1 and
   DEPLOY remains blocked. Backend skeleton evidence is in its own TASKS.
+- 2026-10-24: User accepted BACKEND Stage 2 and authorized Stage 3; awaiting
+  implementation task selection. FRONTEND and DEPLOY stages remain unchanged.

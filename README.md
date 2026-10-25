@@ -61,6 +61,22 @@ The frontend is available at <http://localhost:3000>. The Rails API listens on
 HTTP 501 responses; business logic and frontend-to-backend integration are
 not implemented yet.
 
+### Manual API requests
+
+Open [backend/requests.http](backend/requests.http) with the VS Code REST Client
+extension and send requests individually against the local API. Set
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` in the environment inherited by the
+client; never put real credentials or tokens in the tracked file.
+Admin provisioning must be implemented and run before login can succeed.
+
+Run login first to capture the bearer token, then create the disposable sample
+book before its read/update/delete requests. The delete request targets that
+sample's returned ID. Timeline requests are public; send continuation requests
+only when the preceding named response has a non-null `next_cursor`.
+Expected statuses describe the intended contracts; product endpoints currently
+return 501. Book events appear only after synchronization is implemented and
+run, and cached timelines may require a refresh to expose changes.
+
 ## Validation
 
 ```sh
@@ -82,8 +98,10 @@ npm run build
 | Frontend | [SPEC](docs/frontend/SPEC.md) | [ROADMAP](docs/frontend/ROADMAP.md) | [TASKS](docs/frontend/TASKS.md) |
 | Deployment, after both complete | [SPEC](docs/SPEC.md) | [ROADMAP](docs/ROADMAP.md) | [TASKS](docs/TASKS.md) |
 
-Backend is in Stage 2 (architecture/skeleton); frontend remains in requirements
-planning (Stage 1). Both retain completed foundation history. Backend product
+Backend Stage 2 is complete and Stage 3 is in progress; BE-BOOK model
+validations are implemented. Other tasks require selection; frontend remains
+in requirements planning (Stage 1).
+Both retain completed foundation history. Backend product
 endpoints deliberately return HTTP 501 until Stage 3; its intended-behavior
 tests are expected red, and fresh setup must use `bin/rails db:migrate` rather
 than `db:prepare`, whose seed loader is also an explicit stub. See

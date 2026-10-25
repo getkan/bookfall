@@ -3,10 +3,11 @@
 ## Scope and ownership
 
 Subproject ID: **BACKEND**. Provide the Rails API for one shared bookclub
-timeline and admin-authorized book management, with a Users table for ownership.
+timeline and admin-authorized book management, with a Users table for admin accounts.
 Non-admin user functionality is outside this project's current scope.
 [Roadmap](ROADMAP.md) and [tasks](TASKS.md) track its independent lifecycle,
-Stage 2 authorized 2026-10-24. [Deployment](../SPEC.md) follows completion of both apps.
+Stage 2 completed and Stage 3 authorized 2026-10-24; implementation awaits
+user-selected tasks. [Deployment](../SPEC.md) follows completion of both apps.
 
 The accepted [shared timeline layout](../BOOKEVENT_TIMELINE_LAYOUT_PLAN.md)
 replaces event-count pagination and the proportional-gap/slider design.
@@ -18,8 +19,8 @@ This SPEC owns the API/data requirements used by the
 ### BACKEND-1: Books with embedded reviews
 
 The user-selected logical tables replace the former separate Admin and Review
-models and date-only Book fields. Remaining SQL naming, defaults,
-indexes, and Rails mapping are Stage 2 design work after open requirements settle.
+models and date-only Book fields. Approved SQL naming, defaults, indexes,
+and Rails mapping are recorded in the structural schema below.
 
 | Books field | Required type/constraint |
 | --- | --- |
@@ -53,11 +54,12 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
 
 - Users replaces the separate Admin model. Implement only the admin account
   functionality in current scope; no ordinary-user registration, management,
-  or write workflows. Admin provisioning and username uniqueness still need
-  design decisions. Future roles are not authorization to implement them now.
-- Never store plaintext or reversibly encrypted passwords. Proposed Rails
+  or write workflows. Provision the initial admin through the approved one-time
+  environment-driven rake task; usernames are unique. Future roles are not
+  authorization to implement them now.
+- Never store plaintext or reversibly encrypted passwords. Approved Rails
   mapping: virtual `password` input and bcrypt `password_digest` storage through
-  `has_secure_password`; confirm the physical column mapping in Stage 2.
+  `has_secure_password`, as established by the structural schema.
 - `POST /login` returns `{ "token": "..." }` for valid credentials; invalid
   credentials and missing/invalid authentication return 401.
 - Carry forward the planned Rails `generates_token_for :api_access` policy
@@ -66,10 +68,10 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
   must check the user's current `is_admin`; role-change behavior needs tests.
 - `GET /books`, `GET /books/:id`, `POST /books`, `PATCH /books/:id`, and
   `DELETE /books/:id` require `Authorization: Bearer <token>`. Show includes
-  the review only for a completed book. Define response/error schemas in
-  Stage 2; validation and missing-record failures must be explicit.
+  the review only for a completed book. Response/error schemas are defined
+  below; validation and missing-record failures must be explicit.
 - Login rate limiting must be implemented and tested before production;
-  the policy remains a Stage 2 design-review decision.
+  the approved policy is 10 attempts per IP per 3 minutes with Retry-After.
 
 ### BACKEND-3: Persisted book events, rank and revision consistency
 
@@ -95,27 +97,25 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
 - The shared layout uses the display term FINISHED; the selected stored event
   type is FINISH. Define API/display mapping explicitly. Rails reserves `type`
   for single-table inheritance; retain the requested name with an explicit
-  non-STI mapping in Stage 2 rather than renaming it silently.
+  non-STI mapping established in Stage 2 rather than renaming it silently.
 - Publish event data, ranks, and timeline bounds as one consistent revision.
   Changes affecting event payloads, dates, deletions, or ranks must never
   change the contents of an already pinned revision silently.
 - Reconciliation is idempotent, including removal/correction of end dates.
-  Define snapshot retention, publication, and expiry/restart behavior before
-  implementation. Never return mixed revisions or allocate columns server-side.
+  Use the approved immutable cache revisions and expiry/restart contract below.
+  Never return mixed revisions or allocate columns server-side.
 
 ### BACKEND-4: Date-range timeline API
 
-- Retain public `GET /book-events` as the existing planned access policy;
-  confirm public visibility during Stage 1 before finalizing it.
+- Public `GET /book-events` is the approved timeline access policy.
 - Paginate contiguous calendar-day spans, returning every event in a span.
   Never split a date; an empty span is valid and must still advance.
 - Requests identify a revision and date span (or a cursor carrying them).
   Responses expose event identity, `book_id`, type/date, `start_rank`,
   opaque user_id/title/author, revision, earliest/latest event dates, and the next
   span cursor; terminal pagination is explicit.
-- Order by `(date, type, start_rank)` with exact type encoding/order,
-  request/response field names, boundaries, span length, empty-timeline
-  semantics, and error statuses to be agreed in Stage 2.
+- Use the stable order, field names, boundaries, 30-day spans, empty-timeline
+  semantics, and explicit error statuses in the approved HTTP contract below.
 - Invalid cursors and expired revisions produce explicit errors/restart
   instructions, not successful empty responses.
 - Store timestamps in UTC and group events into UTC calendar days. Date-span
@@ -129,10 +129,9 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
 - Idempotent staging seeds include completed/in-progress books, overlapping
   reading spans, both event types on one day, empty date spans, cross-page
   event pairs, and dense same-day collisions. Seeds do not create the admin.
-- Planned `rack-cors` policy uses `FRONTEND_ORIGIN`, `headers: :any`,
+- Approved direct-browser `rack-cors` policy uses `FRONTEND_ORIGIN`, `headers: :any`,
   GET/POST/PATCH/DELETE/OPTIONS/HEAD, and no credentials; test allowed and
-  disallowed origins and Authorization preflight. Confirm direct-browser
-  versus Next.js-proxy access jointly with FRONTEND.
+  disallowed origins and Authorization preflight. No Next.js proxy is required.
 
 ### BACKEND-6: Scheduled incremental BookEvents synchronization
 
@@ -169,8 +168,8 @@ indexes, and Rails mapping are Stage 2 design work after open requirements settl
   is not a safe checkpoint. Event updates and watermark advancement
   must be atomic; failed-attempt monitoring must survive rollback.
 - Hard-deleted books cannot be discovered through Books.updated_at. Retain
-  dependent event removal on deletion; design snapshot invalidation/deletion
-  reconciliation explicitly. Scheduled publication supersedes the earlier
+  dependent event removal on deletion; publish deletions in new revisions
+  without modifying still-cached pinned revisions. Scheduled publication supersedes the earlier
   implication that all event synchronization runs inside each HTTP write.
 - Rank assignment is still deferred. No sync allocator or arbitrary rank default
   is authorized; first-run generation remains dependent on the eventual rank
@@ -198,6 +197,10 @@ Existing checks: from `backend/`, `bin/rails test`, `bin/rails zeitwerk:check`,
 
 ## Acceptance coverage
 
+The following is required final coverage, not a claim that all cases already
+exist or pass. TASKS distinguishes the expected-red baseline from remaining
+Stage 3 tests.
+
 - BACKEND-1/2: model and request tests cover the opaque ownership placeholder, nullable
   completion/rating/review fields, rating bounds, admin-only book/review writes,
   valid/invalid login, missing/malformed/tampered/expired tokens,
@@ -211,21 +214,34 @@ Existing checks: from `backend/`, `bin/rails test`, `bin/rails zeitwerk:check`,
 - Local manual API checks cover login, authorized CRUD, rejected unauthorized
   writes, and revision-pinned pagination. No expected-red final acceptance.
 
-## Policies carried into Stage 2 review
+## Approved policies and remaining dependencies
 
-- Existing access is retained for Stage 2: public timeline, admin-only book
+- Existing access is retained: public timeline, admin-only book
   detail/list. Broader public detail remains an unapproved scope change.
-- Admin provisioning and username uniqueness; ordinary-user workflows are
-  explicitly out of scope, not open implementation work.
-- Span size, revision retention/restart UX, and performance targets for large
-  or event-dense ranges.
-- Login rate-limit policy; direct-browser versus proxied API access.
+- Unique usernames, one-time environment-driven admin provisioning, and the
+  login rate-limit policy are approved; ordinary-user workflows remain out of scope.
+- Thirty-day spans, immutable cache revisions retained up to 24 hours,
+  early eviction with explicit 410 recovery, and direct-browser CORS access
+  are approved. Detailed contracts below are canonical.
+- No quantitative performance/freshness target beyond the configured sync
+  interval is approved. Do not invent one during implementation.
+- Advanced concurrent-write/overlap coordination is deferred; preserve the
+  documented race risk rather than claim it solved.
 
 Rank assignment/reuse is deferred to frontend implementation by user decision,
 not an unresolved backend requirements question. Backend design must expose
 the dependency without silently choosing cycling, random values, or defaults.
 
+Stage 2 architecture, skeletons, deterministic fixtures and expected-red
+integration baseline were accepted on 2026-10-24. Stage 3 is authorized.
+The user selected BE-BOOK and then the remaining model layer; their model
+validations and User token contract now have passing tests.
+Other implementation tasks still require user selection from TASKS.
+
 ## Approved changes and resources
+
+Chronological history follows; later decisions supersede earlier open questions.
+The approved contracts above and below describe current requirements.
 
 - 2026-10-24: Separate BACKEND lifecycle; preserve completed foundation.
 - 2026-10-24: Adopt shared rank/revision and date-range layout requirements;
@@ -253,7 +269,9 @@ the dependency without silently choosing cycling, random values, or defaults.
 Authorization: user approved BACKEND Stage 2 on 2026-10-24 and confirmed
 `user_id` as a nullable string placeholder with no association. This supersedes
 the earlier foreign-key/username-label requirement. FRONTEND and DEPLOY do
-not advance. Stage 3 business logic is not authorized.
+not advance. Stage 2 was subsequently accepted and Stage 3 authorized on
+2026-10-24. Model validations and User's token contract are implemented;
+endpoint and service business logic remains unimplemented.
 
 ### Structural schema
 
@@ -276,14 +294,20 @@ not advance. Stage 3 business logic is not authorized.
 
 ### Components and data flow
 
-- `User`: password hashing structure. Stage 3 adds admin provisioning and the
-  12-hour password-bound token contract; current admin role checked per request.
-- `Book`, `BookEvent`: associations and database shape in Stage 2; model
-  validations, mutation/event synchronization and serialization in Stage 3.
+- `User`: bcrypt password protection, required/unique username, boolean admin
+  flag, and 12-hour password-salt-bound api_access tokens. Admin provisioning
+  and HTTP authentication/authorization remain unimplemented; request handlers
+  must check the current admin role, not a role embedded in the token.
+- `Book`, `BookEvent`: associations/database shape and model validations exist.
+  BookEvent requires an existing book, START/FINISH type, unique book/type,
+  valid date and integer rank 1..12. Mutation/event synchronization and
+  serialization remain unimplemented; model callbacks do not allocate ranks
+  or reconcile associated records.
 - `SessionsController#create`: planned credential validation and token response.
 - `BooksController`: authenticated/admin index/show/create/update/destroy;
   all writes include optional rating/review. No ownership lookup.
-- `BookEventsController#index` delegates to `Timeline::Page.call(cursor:)`.
+- `BookEventsController#index` currently delegates to `Timeline::Page.call(cursor:)`.
+  Stage 3 must extend this boundary to carry the approved before/after anchors.
   The service owns cursor verification, UTC spans, pinned revision/bounds,
   event serialization and explicit errors. Stage 2 raises a specific
   unimplemented error; the controller logs and returns 501, never fake data.
@@ -293,6 +317,9 @@ not advance. Stage 3 business logic is not authorized.
 - `TaskCheckpoint` and `BookEventSync.call`: scheduled incremental projection
   boundary described in BACKEND-6. The new table is operational state, not a
   fourth user-facing resource; no management endpoint is added.
+  TaskCheckpoint validates required/unique name, defined status, nonnegative
+  integer books_processed and non-null metadata. No transition/watermark
+  automation is added by those validations; the sync service remains a stub.
 - Rank assignment stays owned by frontend implementation. Fixtures contain
   explicit ranks to test the accepted storage/pair contract, not an algorithm.
   Rank-dependent live mutation/publication remains a named cross-project
@@ -321,7 +348,8 @@ completion. No credential data is ever included.
 
 Errors use `{ "error": { "code": "...", "message": "..." } }`:
 401 unauthorized, 403 forbidden for authenticated non-admin, 404 not_found,
-422 validation_failed, 400 invalid_cursor, 410 revision_expired, 429 rate_limited.
+422 validation_failed, 400 invalid_parameters/invalid_timestamp/invalid_cursor,
+410 revision_expired, 429 rate_limited.
 Only the skeleton-specific 501 not_implemented exists at this stage.
 
 #### Timeline query parameters

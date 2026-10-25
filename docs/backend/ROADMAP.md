@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 2: architecture and skeleton | In progress | Frontend-owned rank assignment deferred | Stage 3 after design review and baseline acceptance |
+| BACKEND | Stage 3: detailed design and implementation | In progress; BE-BOOK completed | Frontend-owned rank assignment deferred | Stage 4 after implementation and passing acceptance |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -28,7 +28,7 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   remaining questions are recorded, not silently defaulted.
 - Approval: user authorized Stage 2 on 2026-10-24. Ownership is now explicitly
   a nullable string placeholder with no user association. Existing API access
-  restrictions remain unchanged; new operational policies are Stage 2 proposals.
+  restrictions remain unchanged; later approved operational policies are in SPEC.
 
 ### Stage 2: High-level design and implementation
 
@@ -41,11 +41,16 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 - Evidence: structural models/schema, explicit failing endpoints, deterministic
   seed fixtures and executable integration tests exist. See TASKS for commands,
   passing structural gates, and the expected-red baseline.
-- Approval: Stage 3 not granted. Review span/retention/rate-limit proposals
-  and frontend-dependent rank contract before implementing affected behavior.
+- Status: Completed; user accepted the design/baseline and authorized Stage 3
+  on 2026-10-24. Latest checkpoint: `2f69e81`, 12 structural tests/62 assertions
+  passing and full expected-red baseline of 40 tests/86 assertions,
+  23 failures/5 errors at explicit unimplemented boundaries.
 
 ### Stage 3: Detailed design and implementation
 
+- Approval: granted 2026-10-24. Status: In progress. User-selected BE-BOOK
+  model validations/tests completed; stop at its commit checkpoint before
+  selecting or implementing another unit. Other business logic remains stubbed.
 - Implement only user-selected units with model/unit and integration tests:
   domain, auth, CRUD, ranks/revisions, pagination, seed data, and CORS.
 - Reuse completed database configuration rather than reimplementing it.
@@ -64,8 +69,10 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 
 ## Risks and history
 
-- Snapshot retention/storage, event-dense spans, and cross-app contract drift
-  require design and tests; exact response schemas are not yet agreed.
+- Snapshot retention/storage and response schemas are approved in SPEC.
+  Event-dense spans and cross-app drift still need implementation validation.
+  Rank generation depends on frontend design; advanced sync concurrency is
+  deferred with residual race risk, not claimed solved.
 - Rails scaffold and local production Postgres/cache configuration were
   completed previously; evidence remains in TASKS, not rerun here.
 - 2026-10-24: Restart requirements in a separate BACKEND lifecycle. Replace
@@ -100,3 +107,6 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   eviction/410 recovery, plus forced cache-refresh rake task. Accept direct
   browser-to-Rails access. Edit/delete associated events by book_id; advanced
   concurrency design deferred as low priority, not silently treated as solved.
+- 2026-10-24: Accept completed Stage 2 design/baseline and authorize Stage 3.
+  Reconcile stale policy notes; await user-selected implementation tasks.
+  FRONTEND and DEPLOY lifecycles and publication approvals are unchanged.

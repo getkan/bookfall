@@ -3,13 +3,104 @@
 ## Current scope and session
 
 - ID: **BACKEND**; [SPEC](SPEC.md), [ROADMAP](ROADMAP.md).
-- Lifecycle: Stage 2 architecture/skeleton, **In progress**.
-- Authorized session: user approved Stage 2 on 2026-10-24 and then confirmed
-  `user_id` as a nullable string placeholder, with no user association.
-- Stage 3 approval: not granted. No detailed business-logic tasks selected.
+- Lifecycle: Stage 3 detailed design/implementation, **In progress**.
+- Stage 2: **Completed**, accepted by the user on 2026-10-24 after the
+  reviewed architecture, skeleton and expected-red contract checkpoint.
+- Stage 3 approval: granted on 2026-10-24. BE-BOOK is complete. User then
+  selected the remaining model layer (User, BookEvent, TaskCheckpoint),
+  continuing without committing the previous unit. No endpoint/service unit
+  is selected by that request.
+- `user_id` remains a nullable string placeholder, with no user association.
+- FRONTEND remains Stage 1; DEPLOY remains blocked. No commit or publication
+  is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
 
-## Stage 2 session unit
+## Stage 3 selected unit: remaining models
+
+**Completed (2026-10-24)** — model-only portions of BACKEND-2/3/6.
+
+- Plan: User validates required/unique username and boolean admin flag,
+  retaining bcrypt protections; add 12-hour password-salt-bound api_access
+  tokens with expiry, tamper, revocation and current-record lookup tests.
+  BookEvent validates its existing book, START/FINISH type, unique book/type,
+  valid date and integer rank 1..12. TaskCheckpoint validates required/unique
+  task name, defined status, nonnegative integer count and non-null metadata.
+- Add focused model tests; adapt database-constraint tests to bypass model
+  validation deliberately, preserving their database exception assertions.
+  No schema migration, HTTP authorization, admin provisioning, event
+  reconciliation, rank allocator or checkpoint state machine is added.
+- Model validation does not reconcile event dates/ranks against Books or other
+  events. Those cross-record operations belong to the selected future sync/CRUD
+  work; do not add callbacks that violate the scheduled-sync contract.
+- Preserve all earlier pending changes. Stop at a commit checkpoint after
+  validation; no commit or next implementation unit authorized.
+- Added 18 model tests in `user_test.rb`, `book_event_test.rb`, and
+  `task_checkpoint_test.rb`. User tests prove hashing/confirmation, username
+  validation, boolean role, signed token resolution/tamper/12-hour expiry,
+  password revocation, current-role lookup and deletion.
+- Validation uses the documented Ruby 3.4 Docker prefix with disposable SQLite,
+  `RAILS_ENV=test`, `PARALLEL_WORKERS=1`, after `bin/rails db:migrate`:
+  - `bin/rails test test/models test/integration/backend_skeleton_test.rb
+    test/integration/health_check_test.rb`: **40 tests / 280 assertions /
+    0 failures / 0 errors / 0 skips**.
+  - `bin/rails zeitwerk:check`: passed; `bin/rubocop`: **48 files, no offenses**.
+  - `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+    **0 warnings/errors**; `bin/bundler-audit`: **no vulnerabilities**.
+  - Full `bin/rails test`: **68 tests / 304 assertions / 23 failures /
+    5 errors / 0 skips**. Same existing boundaries: 22 HTTP 501 failures,
+    one injected-SQL expectation encountering the sync stub, four sync and
+    one seed-loader unimplemented errors. No new model/structural failures.
+    Full backend acceptance/CI remains red, not waived by model completion.
+- An initial run exposed a database uniqueness test intercepted by the newly
+  added validation; corrected its database-write bypass and reran successfully.
+- `git diff --check` passed. PostgreSQL not rerun: schema unchanged. Browser
+  and manual API checks skipped because endpoints/frontend are unchanged.
+- BE-AUTH, BE-REVISION and BE-SYNC are not complete: provisioning, HTTP auth,
+  rate limiting, cache revisions and event/checkpoint workflows still need
+  their own selected units and passing acceptance. Commit checkpoint reached;
+  nothing committed and no further implementation started.
+
+## Stage 3 selected unit: BE-BOOK
+
+**Completed (2026-10-24)** — BACKEND-1 model validation unit only.
+
+- Plan/scope: require nonblank title/author and a valid started_at; permit
+  nullable finished_at/rating/review and opaque nullable string user_id.
+  Validate integer ratings 1..5 and completion at/after start; reject supplied
+  invalid completion timestamps rather than silently clearing them.
+- Changed `backend/app/models/book.rb`; added
+  `backend/test/models/book_test.rb` with 10 tests covering required/nullable
+  values, all valid ratings, invalid/fractional ratings, chronology including
+  equality, malformed timestamps, opaque user_id, clearing optional fields,
+  and invalid updates preserving stored data.
+- No migration, user association, controller/auth/serialization behavior,
+  event synchronization, or rank allocator added. Existing database constraints
+  and dependent event association remain unchanged.
+- Validation uses the documented Ruby 3.4 Docker prefix, disposable SQLite
+  `sqlite3:/tmp/bookfall-be-book.sqlite3`, `RAILS_ENV=test`,
+  `PARALLEL_WORKERS=1`, after `bin/rails db:migrate`:
+  - `bin/rails test test/models/book_test.rb
+    test/models/backend_structure_test.rb test/models/task_checkpoint_structure_test.rb
+    test/integration/backend_skeleton_test.rb test/integration/health_check_test.rb`:
+    **22 tests / 149 assertions / 0 failures / 0 errors / 0 skips**.
+  - `bin/rails zeitwerk:check`: passed.
+  - `bin/rubocop`: **45 files, no offenses**.
+  - `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+    **0 warnings/errors**; `bin/bundler-audit`: **no vulnerabilities**.
+  - Full `bin/rails test`: **50 tests / 173 assertions / 23 failures /
+    5 errors / 0 skips**. Failures/errors remain the same unimplemented
+    authentication/CRUD, timeline, sync and seed contracts as Stage 2.
+    BE-BOOK checks pass; the backend/full CI gate is not green.
+- Initial test run caught Rails' rejection of assert_equal with an expected nil;
+  changed that assertion to assert_nil and reran the checks successfully.
+- PostgreSQL not rerun: schema unchanged; new model behavior verified on SQLite.
+  Browser/manual API checks skipped: no frontend or endpoint implementation.
+  `git diff --check` passed. Prior pending documentation, request collection and
+  mailer/layout removals preserved, not claimed as BE-BOOK work.
+- Commit checkpoint: no commit authorized or created. Stop before another unit;
+  resume after commit confirmation or explicit continuation without committing.
+
+## Completed Stage 2 contract unit
 
 2026-10-24 follow-up decisions supersede earlier open-policy notes:
 24-hour non-sliding snapshot cache with early eviction/410 accepted; direct
@@ -22,7 +113,8 @@ Advanced concurrency coverage is explicitly deferred as low priority.
 Expiry, early eviction, force-refresh/pinned-cursor, existing-event edit and
 existing-event deletion contracts added. Cache tests use a private MemoryStore
 per test and restore Rails.cache afterward; no application cache is cleared.
-No Stage 3 runtime logic, live scheduler, rank algorithm, or commit authorized.
+No Stage 3 runtime logic, live scheduler, or rank algorithm was implemented.
+Reviewed and committed as `2f69e81`; the worktree was clean at that checkpoint.
 
 Latest baseline for the complete expanded suite:
 
@@ -36,16 +128,24 @@ Latest baseline for the complete expanded suite:
 - Structural/route/health selection after db:migrate:
   **12 tests / 62 assertions passed**; `bin/rails zeitwerk:check` passed;
   `bin/rubocop`: **45 files, no offenses**. `git diff --check` passed.
-- Earlier undecided-expiry notes below are superseded. Cache expiry/eviction/
+- Cache expiry/eviction/
   refresh contracts now exist; advanced concurrency is intentionally deferred,
   not part of this Stage 2 test unit. Force-refresh and CRUD behaviors are
   assertions of intended future behavior; their later assertions remain blocked
   behind the present explicit HTTP/service stubs.
-- No schema changes; Postgres and frontend/browser checks not rerun. Preserve
-  existing pending contract changes. Stop for commit checkpoint and Stage 2
-  design review; no automatic Stage 3 transition.
+- No schema changes; Postgres and frontend/browser checks were not rerun.
+  Review also passed Brakeman (0 warnings/errors) and dependency audit
+  (no vulnerabilities). Stage 2 acceptance does not establish working business
+  behavior or waive Stage 3/final validation.
 
-**BE-CONTRACT-EXPANSION — In progress (2026-10-24):** user confirmed the
+2026-10-24 lifecycle transition: user requested documentation cleanup and
+progression to Stage 3. Stage 2 is Completed; Stage 3 is approved but Not started
+pending task selection. This documentation-only update reconciles decisions
+and historical notes; runtime checks are not rerun. Validate whitespace and
+links, preserve the exact historical baselines, and do not commit implicitly.
+
+**BE-CONTRACT-EXPANSION — Completed (Stage 2 contracts only, 2026-10-24):**
+user confirmed the
 other endpoint contracts, 30-day spans, environment-driven one-time admin
 initialization and the proposed login rate limit. Add executable tests for
 anchor normalization/full days, backward traversal, boundary clipping,
@@ -53,12 +153,12 @@ same-timestamp events, invalid parameter combinations, pinned mutation
 isolation, changed-book reconciliation, equal-watermark replay and failed-run
 rollback/retry. Keep all Stage 3 stubs explicit.
 
-Revision-expiry timing/storage fault injection and true concurrent-run/write
-tests still require the design decisions being explained to the user; do not
-choose cache TTL or locking infrastructure just to write those tests. This
-unit expands coverage but does not claim those undecided cases are covered.
+Revision expiry and early eviction contracts were subsequently added under the
+approved cache policy. Refresh failure/checkpoint invariance still need focused
+tests with Stage 3 implementation. Advanced concurrent-run/write coverage is
+explicitly deferred, not a remaining Stage 2 exit requirement.
 
-Implemented subset and validation:
+Historical intermediate subset and validation (superseded by the 40-test baseline):
 
 - Timeline tests now cover 30-day span bounds, offset/mid-day anchors, backward
   traversal and stable same-timestamp ordering, both outside-bound cases,
@@ -83,9 +183,9 @@ Implemented subset and validation:
 - Existing unrelated pending API documentation preserved. No application
   behavior, schemas, or Stage 3 implementation changed. Full suite/Postgres
   reruns skipped: only targeted integration tests and documents changed.
-- Unit remains In progress for revision-expiry and actual concurrency cases,
-  which need the explained design decisions. No new full-suite count is
-  claimed, and no previously recorded baseline is silently overwritten.
+- This intermediate run predates the expiry/eviction/refresh and existing-event
+  edit/delete contracts. The completed unit's full baseline is recorded above;
+  true concurrent-run/write guarantees remain explicitly deferred.
 
 API contract clarification, 2026-10-24: user accepted recommended before/after
 timestamp navigation anchors with cursor-only continuation. SPEC defines full
@@ -93,13 +193,13 @@ UTC-day inclusion, chronological ordering within backward pages, boundary
 clipping, terminal results, explicit errors, and revision pinning. No endpoint
 behavior implemented or existing test baseline changed.
 
-Required next contract coverage: both anchor directions including timestamps
+Subsequently added contract coverage: both anchor directions including timestamps
 mid-day and with offsets, default earliest page, backward prepend traversal,
 same-timestamp events, empty interior spans, outside-bounds anchors, conflicting/
 duplicate/empty parameters, invalid timestamps/cursors and expired revisions.
-These cases are not yet executable tests; add them before affected Stage 3
-implementation. Documentation checks: `git diff --check`; runtime checks
-skipped because this session changes only requirements. No commit authorized.
+These cases now exist as executable expected-red tests. The initial
+documentation-only clarification used `git diff --check` and skipped runtime
+checks; later test evidence and the authorized commit are recorded above.
 
 **BE-SKELETON — Completed (Stage 2 structural unit only):** schema/models and bcrypt,
 controller/service stubs with explicit logged failures, deterministic shared
@@ -110,14 +210,16 @@ seed/test data, and intended API integration tests.
   for rating, date ordering, event type, rank bounds and unique book/type.
 - No ownership lookup, rank allocator/default, login/CRUD implementation,
   revision query, seed loader logic, or CORS behavior is implemented.
-- Stage 3 review must resolve snapshot/retention, span/rate-limit/provisioning
-  proposals. Rank assignment stays deferred to frontend implementation.
+- Snapshot/retention, span/rate-limit/provisioning and direct-access decisions
+  are approved in SPEC. Rank assignment stays deferred to frontend implementation.
 - Tests cover structural constraints, fixture geometry cases, route discovery,
   intended login/admin CRUD, serialization, UTC span completeness, empty spans,
   cross-span pairs, invalid cursor and idempotent seed loading.
 - Remaining Stage 3 tests: token expiry/tamper/password revocation/current-role,
-  rate limits, missing records, snapshot mutation/expiry, CORS, and full seeded
-  end-to-end acceptance. Existing expected failures cannot waive these.
+  rate limits, missing records, refresh failure/checkpoint invariance, CORS,
+  and full seeded end-to-end acceptance. Snapshot mutation/expiry tests already
+  exist but remain blocked by stubs. Existing expected failures cannot waive
+  passing validation of new Stage 3 behavior.
 - Replace temporary `BackendSkeletonTest` 501 expectations as each endpoint
   is implemented in Stage 3; never weaken intended-behavior contract tests
   to expect unimplemented stubs.
@@ -128,10 +230,11 @@ seed/test data, and intended API integration tests.
 Add Books timestamps/index, task checkpoint monitoring table/model,
 `book_events:sync` rake/service stub, and structural/intended-behavior tests.
 No scheduling infrastructure or reconciliation logic is implemented.
-Stage 3 BE-SYNC depends on rank contract, concurrent-write/watermark policy,
+Stage 3 BE-SYNC depends on the rank contract, bounded/inclusive watermark policy,
 retry/failure handling and snapshot publication. Required cases include first
 run, changed/unchanged books, finish correction/removal, inclusive time-boundary
-replay, failed runs, concurrent writes/runs and hard deletion.
+replay, failed runs and hard deletion. Advanced concurrent writes/runs are
+deferred; document the residual race risk.
 
 Validation (Ruby 3.4 Docker command prefix in the baseline section, disposable
 SQLite DATABASE_URL `sqlite3:/tmp/bookfall-sync.sqlite3`):
@@ -155,8 +258,8 @@ SQLite DATABASE_URL `sqlite3:/tmp/bookfall-sync.sqlite3`):
 - `git diff --check`: passed. No Stage 3 implementation or live scheduler added;
   no unrelated in-progress skeleton changes reverted.
 
-Stop at this Stage 2 checkpoint. Watermark concurrency policy and
-rank-dependent generation remain review items; no Stage 3 approval or commit.
+This historical checkpoint preceded the approved concurrency deferral and
+Stage 3 transition. Rank-dependent generation remains a cross-project dependency.
 
 2026-10-24 interval decision: `BOOK_EVENTS_SYNC_INTERVAL_SECONDS=600` added to
 `backend/.env.example`. Future scheduling must use a positive integer in seconds,
@@ -166,23 +269,25 @@ configuration validation tests belong to the authorized scheduling work.
 Validation: `git diff --check` and exact environment-template value check passed.
 Runtime tests skipped: environment-template and documentation changes only.
 
-These remain **Not started** as detailed business-logic units, pending design
-review, Stage 3 approval, and user task selection. They are
-planning outcomes, not permission to implement the old task order.
+Except for completed BE-BOOK, these remain **Not started** as detailed
+business-logic units. Stage 3 is approved, but the user must select each
+session task; table order is not
+permission to choose or implement a unit automatically.
 
 | Task ID | Outcome | Requirements | Dependencies | Acceptance/checks to define or run |
 | --- | --- | --- | --- | --- |
-| BE-BOOK | Books with opaque user_id, timestamps, nullable rating/review and model validations | BACKEND-1 | Structural schema | No user association, rating 1..5, nullable fields, timestamp ordering and in-progress tests |
-| BE-AUTH | Admin-only account functionality on Users, protected passwords, login and rate limit | BACKEND-2 | Provisioning and rate-limit decisions | Model/request tests; expiry, revocation, current-role checks; manual login |
+| BE-BOOK (Completed) | Books with opaque user_id, timestamps, nullable rating/review and model validations | BACKEND-1 | Structural schema | 10 new model tests pass; validation evidence and commit checkpoint above |
+| BE-AUTH | Admin-only account functionality on Users, one-time env provisioning, protected passwords, login and rate limit | BACKEND-2 | Existing User schema; approved auth/provisioning policy | Model/request tests; provisioning errors/idempotence policy, expiry, revocation, current-role checks, rate limit; manual login |
 | BE-CRUD | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | Request tests for every action, validation, missing records, 401/role rejection; manual CRUD |
-| BE-REVISION | Persisted BookEvents, synchronized timestamps/ranks and coherent revisions | BACKEND-3 | BE-BOOK; rank and snapshot contracts | Event FK/type/uniqueness, rank bounds/ties, backdated edits, idempotence, pinned responses |
+| BE-REVISION | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot contract; rank generation deferred | Pinned payloads, 24-hour expiry, eviction/410 recovery, refresh failure preserves current revision/checkpoint |
+| BE-SYNC | Incremental event reconciliation and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK, BE-REVISION; frontend rank contract for new events | First/incremental runs, identity preservation, finish correction/removal, inclusive replay, atomic watermark, failure monitoring/retry; document deferred concurrency risk |
 | BE-EVENTS | Complete date-span API, bounds, next cursor and restart errors | BACKEND-4 | BE-REVISION; API contract | Empty/dense spans, cross-span pairs, no omissions/duplicates, expiry/error integration tests |
 | BE-SEEDS | Idempotent staging books, embedded reviews and events | BACKEND-5 | BE-BOOK, BE-REVISION; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
-| BE-CORS | Frontend-origin integration | BACKEND-5 | Cross-app access decision | Authorization preflight and origin rejection integration tests |
+| BE-CORS | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight and origin rejection integration tests |
 
 Structural contracts, deterministic fixtures and executable intended-behavior
-tests now exist; see Stage 2 baseline below. Detailed implementation tasks
-remain Not started and are not selected by Stage 2 approval.
+tests now exist; see Stage 2 baseline below. BE-BOOK is complete; other detailed
+implementation tasks remain Not started and are not selected by Stage 3 approval alone.
 
 BE-REVIEW is superseded by embedded Books fields, not completed. Separate Admin
 model and date-only schema tasks are superseded too. Rank assignment is
@@ -260,10 +365,9 @@ Final validation, after adding the temporary route-skeleton test:
   unit; Postgres test compatibility is not deployed-environment evidence.
 
 Stage 2 skeleton acceptance passed under the documented expected-red exception.
-Business feature completion is not claimed. Stage 2 remains in design review:
-span length, retention/cache guarantees, provisioning/rate-limit proposals
-need confirmation before affected Stage 3 logic. No Stage 3 task or commit
-authorized. Stop for review, Stage 3 approval and user task selection.
+Business feature completion is not claimed. The above historical run preceded
+the policy approvals and expanded contracts recorded at the top of this file.
+Stage 2 is now accepted and Stage 3 approved; task selection remains required.
 
 ## Validation and commit checkpoint
 
