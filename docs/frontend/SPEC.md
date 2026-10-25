@@ -44,6 +44,10 @@ planned. [Backend SPEC](../backend/SPEC.md) owns the shared API contract.
 
 ### FRONTEND-3: Deterministic collision resolution
 
+- Rank assignment/reuse for values 1..12 inclusive is explicitly deferred to
+  frontend implementation (2026-10-24). Decide the algorithm and tie order
+  there; the previous unbounded dense chronological rank is superseded.
+  Coordinate any required backend storage/API changes before implementing them.
 - Both events inherit `start_rank`; their base column is `start_rank % N`,
   even across date spans. Reserve label rectangles, not full reading spans.
 - Resolve each date/type region as a pure function of its events and `N`,
@@ -119,6 +123,8 @@ audit evidence; review compatible remediation before expanding dependencies.
 - Concrete geometry, text overflow and minimum-viewport behavior.
 - Date label wording, date formatting/calendar conventions and initial scroll
   direction/position; exact UX for empty/loading/error/restart states.
+- UTC storage and UTC calendar-day grouping are confirmed backend constraints;
+  display formatting must not silently move events to browser-local days.
 - Public timeline versus restricted viewing and detail access; admin UI scope.
 - Accessibility/browser support, performance budgets, unloaded-range sizing,
   and API access approach shared with BACKEND.
@@ -128,5 +134,7 @@ audit evidence; review compatible remediation before expanding dependencies.
 - 2026-10-24: Separate FRONTEND lifecycle; adopt shared calendar-row layout,
   base rank columns, spill/stack resolution, revision-pinned date ranges.
   No Stage 2 or implementation approval implied.
+- 2026-10-24: Own the deferred 1..12 rank assignment/reuse decision during
+  frontend implementation. UTC defines timeline days. No stage advance implied.
 - [Next.js docs](https://nextjs.org/docs), [Next.js Learn](https://nextjs.org/learn),
   [React Learn](https://react.dev/learn).

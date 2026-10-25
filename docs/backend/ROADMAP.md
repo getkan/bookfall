@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 1: requirements restart | In progress | Shared layout; cross-app API decisions | Stage 2 after open requirements are resolved |
+| BACKEND | Stage 2: architecture and skeleton | In progress | Frontend-owned rank assignment deferred | Stage 3 after design review and baseline acceptance |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -19,9 +19,16 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   layout, testable acceptance, and explicit unresolved decisions in SPEC.
 - Exit: public/detail access, validation bounds, calendar/revision constraints,
   integration approach, and material security/performance decisions agreed.
+- Schema refinement: Books now embeds rating/review and uses timestamps;
+  BookEvents is persisted; Users replaces Admin. Ownership via `Books.user_id`,
+  nullable completion/reviews, rank 1..12 inclusive, UTC storage and admin-only
+  writes/account scope are confirmed. Calendar-day grouping is UTC. Rank
+  assignment is deferred to frontend implementation, not a Stage 1 blocker.
 - Evidence: document split and new timeline direction approved 2026-10-24;
   remaining questions are recorded, not silently defaulted.
-- Approval: Stage 2 not granted. Stop for approval after requirements settle.
+- Approval: user authorized Stage 2 on 2026-10-24. Ownership is now explicitly
+  a nullable string placeholder with no user association. Existing API access
+  restrictions remain unchanged; new operational policies are Stage 2 proposals.
 
 ### Stage 2: High-level design and implementation
 
@@ -31,7 +38,11 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   executable end-to-end API tests before business logic.
 - Exit: structural checks pass and exact expected-red integration baseline is
   recorded. Broken harness/discovery or unrelated regressions block exit.
-- Approval: not granted. Stop for Stage 3 approval.
+- Evidence: structural models/schema, explicit failing endpoints, deterministic
+  seed fixtures and executable integration tests exist. See TASKS for commands,
+  passing structural gates, and the expected-red baseline.
+- Approval: Stage 3 not granted. Review span/retention/rate-limit proposals
+  and frontend-dependent rank contract before implementing affected behavior.
 
 ### Stage 3: Detailed design and implementation
 
@@ -59,3 +70,15 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   completed previously; evidence remains in TASKS, not rerun here.
 - 2026-10-24: Restart requirements in a separate BACKEND lifecycle. Replace
   event-count pagination with shared revision-pinned date spans.
+- 2026-10-24: Record user-selected Books/BookEvents/Users schema. Separate
+  Review/Admin models are superseded. Shared rank and reader-label impacts
+  remain blockers; frontend/deployment stages and approvals do not advance.
+- 2026-10-24: Confirm user ownership, nullable completion/rating/review, rank
+  bounds inclusive, admin-only writes including reviews, no non-admin account
+  implementation, and UTC storage. Rank assignment and club timezone stay open.
+- 2026-10-24: Confirm UTC day grouping and defer rank assignment to frontend
+  implementation. Preserve the backend 1..12 contract; do not invent an
+  allocator/default. Remaining access, provisioning, and API policies stay open.
+- 2026-10-24: Stage 2 authorized; `user_id` confirmed as a nullable string
+  placeholder, superseding foreign-key ownership. Added structural skeleton
+  and expected-red contract coverage without Stage 3 business logic.

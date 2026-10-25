@@ -44,7 +44,7 @@ In one terminal:
 ```sh
 cd backend
 bundle install
-bin/rails db:prepare
+bin/rails db:migrate
 bin/rails server -p 3001
 ```
 
@@ -57,8 +57,9 @@ npm run dev -- --port 3000
 ```
 
 The frontend is available at <http://localhost:3000>. The Rails API listens on
-<http://localhost:3001>. No application endpoints or frontend-to-backend
-integration have been defined yet.
+<http://localhost:3001>. Backend product routes currently return explicit
+HTTP 501 responses; business logic and frontend-to-backend integration are
+not implemented yet.
 
 ## Validation
 
@@ -81,9 +82,14 @@ npm run build
 | Frontend | [SPEC](docs/frontend/SPEC.md) | [ROADMAP](docs/frontend/ROADMAP.md) | [TASKS](docs/frontend/TASKS.md) |
 | Deployment, after both complete | [SPEC](docs/SPEC.md) | [ROADMAP](docs/ROADMAP.md) | [TASKS](docs/TASKS.md) |
 
-Backend and frontend each restart at requirements planning (Stage 1) and retain
-their completed foundation history. Every subproject has independent stage
-approvals. The top-level documents cover deployment, not application tasks.
+Backend is in Stage 2 (architecture/skeleton); frontend remains in requirements
+planning (Stage 1). Both retain completed foundation history. Backend product
+endpoints deliberately return HTTP 501 until Stage 3; its intended-behavior
+tests are expected red, and fresh setup must use `bin/rails db:migrate` rather
+than `db:prepare`, whose seed loader is also an explicit stub. See
+[backend validation evidence](docs/backend/TASKS.md) for disposable checks.
+Every subproject has independent approvals. The top-level documents cover
+deployment, not application tasks.
 
 ## Learning resources
 

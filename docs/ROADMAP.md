@@ -9,7 +9,7 @@ but this document authorizes no parallel implementation or stage transitions.
 
 | ID | Outcome and owning roadmap | Current lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- | --- |
-| BACKEND | [Rails data and revision-pinned timeline API](backend/ROADMAP.md) | Stage 1: requirements restart | In progress | Shared timeline contract | Backend Stage 2, after open decisions |
+| BACKEND | [Rails data and revision-pinned timeline API](backend/ROADMAP.md) | Stage 2: architecture and skeleton | In progress | Frontend-owned rank assignment deferred | Backend Stage 3 after design/baseline review |
 | FRONTEND | [Calendar-row timeline and collision-safe rendering](frontend/ROADMAP.md) | Stage 1: requirements restart | In progress | Shared layout; backend API contract and implementation | Frontend Stage 2, after open decisions |
 | DEPLOY | Staging and production deployment | Stage 1: deferred | Blocked | BACKEND and FRONTEND completed, including Stage 4 | Begin deployment planning after both complete |
 
@@ -70,3 +70,5 @@ completed feature lifecycles from that foundation.
   lifecycles; defer DEPLOY until both are complete. Preserve foundation history.
 - 2026-10-24: Replace the event-count/proportional-gap/slider plan with the
   accepted calendar-row, rank/revision, and date-range layout design.
+- 2026-10-24: User authorized BACKEND Stage 2. FRONTEND remains Stage 1 and
+  DEPLOY remains blocked. Backend skeleton evidence is in its own TASKS.

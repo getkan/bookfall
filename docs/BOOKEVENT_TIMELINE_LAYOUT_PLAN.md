@@ -9,6 +9,19 @@ This is the shared layout reference, not a competing project specification.
 and TASKS documents track separate lifecycles. [Deployment](SPEC.md) follows
 completion of both subprojects.
 
+Schema refinement, 2026-10-24: the user selected persisted BookEvents with
+timestamp `date`, stored type `FINISH`, and `start_rank` 1 through 12 inclusive,
+plus Books timestamps and Users. The later Stage 2 clarification makes
+`user_id` a nullable string placeholder without a user association or ownership
+behavior. Non-admin account functionality is out of scope; the reader-label
+source remains deferred. See [Backend SPEC](backend/SPEC.md).
+The bounded rank supersedes the unbounded dense rank assumed below; assignment,
+reuse and tie order are deferred to frontend implementation, and cycling is
+not approved. This deferral is not a backend Stage 1 blocker.
+Timestamps are stored in UTC and calendar-day grouping also uses UTC.
+Coordinate the deferred rank contract before implementing dependent behavior;
+earlier rank assumptions do not override the new schema.
+
 ## Problem and approach
 
 Design a technology-independent, paginated timeline with fixed-size labels,
