@@ -24,6 +24,45 @@
   is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
 
+## Stage 3 selected unit: CORS
+
+**Completed (2026-10-24), reviewed, uncommitted** — BE-CORS, BACKEND-5.
+
+- Prior publication unit is committed as `69d7dfe`; user authorized continuing.
+- Scoped plan: enable rack-cors; configure one exact frontend origin before
+  other middleware; allow the approved methods and any request headers,
+  including Authorization/Content-Type, without cookie credentials. Preserve
+  normal admin authentication and reject malformed configuration at boot.
+- Reviewed inputs/changed surfaces: Gemfile/lockfile, cors initializer,
+  application configuration, environment example, authentication integration
+  tests, new cors integration tests, README and backend planning documents.
+- Added five integration tests covering approved preflight methods/headers,
+  actual authenticated and unauthorized responses, rejected origins (including
+  prefix lookalikes and null), PUT rejection, no credentials, Vary: Origin,
+  and requests without Origin.
+- Validation in disposable Ruby 3.4 Docker/SQLite:
+  - `bundle install --jobs 4`: added rack-cors 3.0.0; no unrelated upgrades.
+  - `bin/rails db:prepare`: passed.
+  - `bin/rails test test/integration/cors_test.rb test/integration/authentication_test.rb`:
+    **15 tests, 292 assertions**, no failures/errors/skips.
+  - `FRONTEND_ORIGIN=https://frontend.example.test bin/rails test test/integration/cors_test.rb`:
+    **5 tests, 76 assertions**, all passing.
+  - `bin/rails test`: **123 tests, 1,619 assertions**, no failures/errors/skips.
+  - `bin/rails zeitwerk:check`, `bin/rubocop` (60 files),
+    `bin/bundler-audit`, and
+    `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`: passed.
+  - `bin/rails db:seed:replant` and `bin/rails book_events:sync`: passed.
+  - Five separate `bin/rails runner` boot checks reject wildcard, path,
+    trailing slash, null and empty origins with the explicit configuration error.
+  - `git diff --check`: passed.
+- Direct review: exact origin matching, middleware order, approved methods,
+  no credential header, independent auth and scoped dependency lock changes
+  verified; no actionable findings. Middleware tested through the real Rails
+  integration stack; frontend browser rendering/live deployment not tested.
+  PostgreSQL acceptance remains the next selected unit.
+- Stop here for the CORS commit checkpoint. Stage 4 still requires Stage 3
+  acceptance and separate approval; no frontend/deployment work authorized.
+
 ## Stage 3 selected unit: sync-to-cache publication
 
 **Completed (2026-10-24), reviewed, uncommitted** — BE-SYNC, BACKEND-3/6.
@@ -632,10 +671,10 @@ permission to choose or implement a unit automatically.
 | BE-AUTH (Completed) | Admin-only account functionality on Users, one-time env provisioning, protected passwords, login and rate limit | BACKEND-2 | Existing User schema; approved auth/provisioning policy | Passing auth/provisioning integration tests and live HTTP smoke; evidence and commit checkpoint above |
 | BE-CRUD (Completed; 35a15f5) | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | CRUD/auth/error/rollback tests and live HTTP CRUD pass; evidence above |
 | BE-REVISION (Completed; uncommitted) | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot and randomized rank contracts | Pinned payloads, 24-hour expiry, eviction/410 recovery and refresh failure tests pass; cross-process live refresh passes |
-| BE-SYNC (Completed; uncommitted publication) | Incremental event reconciliation, atomic revision publication and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK; randomized rank contract; BE-REVISION | Projection/rank/checkpoint and real-cache atomic publication/rollback tests pass; advanced concurrency risk deferred |
+| BE-SYNC (Completed; publication committed as `69d7dfe`) | Incremental event reconciliation, atomic revision publication and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK; randomized rank contract; BE-REVISION | Projection/rank/checkpoint and real-cache atomic publication/rollback tests pass; advanced concurrency risk deferred |
 | BE-EVENTS (Completed; uncommitted) | Complete date-span API, bounds, next cursor and restart errors; joined Book fields/rating, never review | BACKEND-4 | BE-REVISION; API contract | Timeline and joined-field contracts pass; live pagination/refresh walkthrough passes |
 | BE-SEEDS (Completed; ae58b2d) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
-| BE-CORS | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight and origin rejection integration tests |
+| BE-CORS (Completed; uncommitted) | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight, origin rejection, unchanged auth and full SQLite gate pass |
 
 Structural contracts, deterministic fixtures and executable intended-behavior
 tests now exist; see Stage 2 baseline below. BE-BOOK, BE-AUTH, BE-CRUD,

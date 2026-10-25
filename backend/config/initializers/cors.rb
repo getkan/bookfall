@@ -1,16 +1,27 @@
-# Be sure to restart your server when you modify this file.
+require "uri"
 
-# Avoid CORS issues when API is called from the frontend app.
-# Handle Cross-Origin Resource Sharing (CORS) in order to accept cross-origin Ajax requests.
+origin = ENV.fetch("FRONTEND_ORIGIN") do
+  raise "FRONTEND_ORIGIN must be set in production" if Rails.env.production?
 
-# Read more: https://github.com/cyu/rack-cors
+  "http://localhost:3000"
+end
+begin
+  uri = URI.parse(origin)
+  valid = %w[http https].include?(uri.scheme) && uri.host.present? &&
+    uri.userinfo.nil? && uri.path.empty? && uri.query.nil? && uri.fragment.nil? &&
+    !origin.include?("*")
+  raise URI::InvalidURIError unless valid
+rescue URI::InvalidURIError
+  raise ArgumentError, "FRONTEND_ORIGIN must be one HTTP(S) origin without a path or wildcard"
+end
 
-# Rails.application.config.middleware.insert_before 0, Rack::Cors do
-#   allow do
-#     origins "example.com"
-#
-#     resource "*",
-#       headers: :any,
-#       methods: [:get, :post, :put, :patch, :delete, :options, :head]
-#   end
-# end
+Rails.application.config.x.frontend_origin = origin
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
+  allow do
+    origins origin
+    resource "*",
+      headers: :any,
+      methods: %i[get post patch delete options head],
+      credentials: false
+  end
+end

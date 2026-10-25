@@ -188,7 +188,13 @@ Both retain completed foundation history. Backend timeline pagination,
 explicit cache publication and sync event projection are implemented.
 `bin/rails db:seed` idempotently creates staging Books only; it creates no
 users or BookEvents (run `bin/rails book_events:sync` afterward).
-The backend SQLite suite passes; CORS and
+Direct-browser CORS permits only `FRONTEND_ORIGIN`, including Authorization and
+JSON preflights for GET/POST/PATCH/DELETE/OPTIONS/HEAD, without cookie credentials.
+Set an exact HTTP(S) origin without a path, trailing slash or wildcard; production
+requires it, while development/test default to `http://localhost:3000`.
+Invalid values stop application boot. Restart Rails after changing this setting.
+CORS does not replace admin authentication.
+The backend SQLite suite and CORS checks pass;
 feature-wide/Postgres acceptance remain outstanding. See
 [backend validation evidence](docs/backend/TASKS.md) for disposable checks.
 Every subproject has independent approvals. The top-level documents cover

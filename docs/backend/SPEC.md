@@ -137,6 +137,10 @@ and Rails mapping are recorded in the structural schema below.
 - Approved direct-browser `rack-cors` policy uses `FRONTEND_ORIGIN`, `headers: :any`,
   GET/POST/PATCH/DELETE/OPTIONS/HEAD, and no credentials; test allowed and
   disallowed origins and Authorization preflight. No Next.js proxy is required.
+  Implemented: production requires one exact HTTP(S) origin without path,
+  trailing slash, user info, query, fragment or wildcard; invalid values stop
+  boot. Development/test default to `http://localhost:3000` when unset.
+  CORS permissions never bypass authentication or admin authorization.
 
 ### BACKEND-6: Scheduled incremental BookEvents synchronization
 

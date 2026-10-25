@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 3: detailed design and implementation | In progress; sync publication implemented | CORS and PostgreSQL acceptance pending | Stage 4 after implementation and passing acceptance |
+| BACKEND | Stage 3: detailed design and implementation | In progress; sync publication and CORS implemented | PostgreSQL acceptance pending | Stage 4 after implementation and passing acceptance |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -60,7 +60,10 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   are implemented and all SQLite tests pass. User selected publication, CORS,
   PostgreSQL acceptance and feature review, reviewing after each unit.
   Sync publication now passes atomic rollback and pinned-revision checks.
-  Stop at its commit checkpoint before CORS; Stage 4 approval remains separate.
+  Publication committed as `69d7dfe`. CORS allowlist, Authorization preflight,
+  rejected origins and unchanged authentication now pass the full SQLite gate.
+  Stop at the CORS commit checkpoint before PostgreSQL acceptance;
+  Stage 4 approval remains separate.
 - Implement only user-selected units with model/unit and integration tests:
   domain, auth, CRUD, ranks/revisions, pagination, seed data, and CORS.
 - Reuse completed database configuration rather than reimplementing it.
