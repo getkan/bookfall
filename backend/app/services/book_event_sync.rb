@@ -14,6 +14,9 @@ class BookEventSync
       last_finished_at: nil, books_processed: 0, last_error: nil)
 
     begin
+      unless SolidCache::Record.connection_pool == BookEvent.connection_pool
+        raise "Book event sync requires Solid Cache on the primary database connection"
+      end
       BookEvent.transaction do
         books = Book.where("updated_at <= ?", bound)
         books = books.where("updated_at >= ?", checkpoint.processed_through) if checkpoint.processed_through
@@ -22,6 +25,7 @@ class BookEventSync
           reconcile(book)
           processed += 1
         end
+        Timeline::Refresh.call(cache: SolidCache::Store.new)
         checkpoint.update!(status: "succeeded", processed_through: bound,
           last_finished_at: Time.current, last_succeeded_at: Time.current,
           books_processed: processed)

@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 3: detailed design and implementation | In progress; CRUD, sync projection and timeline/cache implemented | Scheduled publication integration and CORS pending | Stage 4 after implementation and passing acceptance |
+| BACKEND | Stage 3: detailed design and implementation | In progress; sync publication implemented | CORS and PostgreSQL acceptance pending | Stage 4 after implementation and passing acceptance |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -57,8 +57,10 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   daily/type occupancy ranks; event projection is implemented. User then
   selected BookEventsController with joined title/author/user_id/rating,
   explicitly excluding review. Timeline pagination and explicit cache refresh
-  are implemented and all SQLite tests pass. BE-SYNC overall remains In progress
-  for scheduled publication integration. Stop at the unit commit checkpoint.
+  are implemented and all SQLite tests pass. User selected publication, CORS,
+  PostgreSQL acceptance and feature review, reviewing after each unit.
+  Sync publication now passes atomic rollback and pinned-revision checks.
+  Stop at its commit checkpoint before CORS; Stage 4 approval remains separate.
 - Implement only user-selected units with model/unit and integration tests:
   domain, auth, CRUD, ranks/revisions, pagination, seed data, and CORS.
 - Reuse completed database configuration rather than reimplementing it.

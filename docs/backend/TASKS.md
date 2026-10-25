@@ -14,12 +14,57 @@
   Sync projection implemented below, uncommitted. User then selected the
   book-events controller with joined Book title/author/user_id/rating,
   explicitly excluding review; pagination/revision/refresh implemented below.
-  Scheduled publication integration, CORS and frontend implementation remain
-  unselected. No lifecycle transition or commit authorized by implementation.
+  Sync/ranks/timeline were committed as `ae169ef`. User now selected four
+  sequential units: sync publication, CORS, PostgreSQL acceptance, then
+  feature-wide review, reviewing each. Complete/review one unit and pause at
+  its commit checkpoint; Stage 4 approval remains separate.
+  Frontend implementation remains unselected. No commit implicitly authorized.
 - `user_id` remains a nullable string placeholder, with no user association.
 - FRONTEND remains Stage 1; DEPLOY remains blocked. No commit or publication
   is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
+
+## Stage 3 selected unit: sync-to-cache publication
+
+**Completed (2026-10-24), reviewed, uncommitted** — BE-SYNC, BACKEND-3/6.
+
+- Plan/source review: BookEventSync, Timeline::Refresh, TaskCheckpoint,
+  cache configuration/Solid Cache connection inheritance, sync contracts,
+  backend SPEC/ROADMAP/TASKS and CI gates.
+- Sync calls the existing refresh builder inside its event/checkpoint
+  transaction, explicitly using Solid Cache. Guard shared primary connection
+  pool before work; refuse separate-cache configurations rather than falsely
+  claim atomicity. Refresh's default cache remains Rails.cache for other callers.
+- Publish every successful run, including no-op runs to reflect hard deletions.
+  Existing pinned revisions remain available. Cache build/write/pointer or
+  final checkpoint failure rolls back snapshot, pointer, events and watermark;
+  existing failed-attempt monitoring survives and the original exception raises.
+- Four new integration tests use real Solid Cache, not MemoryStore:
+  joined values published/pinned old cursor, no-op deletion publication,
+  snapshot/pointer failure rollback and retry, final checkpoint SQL failure
+  after pointer write proving all persisted state rolls back.
+- Validation: Ruby 3.4 Docker, disposable SQLite, existing session gem cache,
+  RAILS_ENV=test, PARALLEL_WORKERS=1:
+  - `bin/rails db:prepare`: passed.
+  - `bin/rails test test/integration/book_event_sync_publication_test.rb
+    test/integration/book_event_sync_test.rb test/integration/book_event_sync_contract_test.rb
+    test/integration/timeline_contract_test.rb`: **32 tests / 443 assertions,
+    0 failures / 0 errors / 0 skips**.
+  - Full `bin/rails test`: **118 tests / 1543 assertions, 0 failures /
+    0 errors / 0 skips**.
+  - `bin/rails zeitwerk:check`: passed; `bin/rubocop`: **59 files, no offenses**;
+    `bin/bundler-audit`: no vulnerabilities;
+    `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`: no warnings.
+  - `bin/rails db:seed:replant`, `bin/rails book_events:sync`, separate
+    `bin/rails runner` process reading Solid Cache: published **19 events**.
+- Post-implementation direct review: cache writes participate in the primary
+  connection transaction, prior revisions are not overwritten, final-checkpoint
+  rollback verified, default explicit refresh behavior unchanged. No actionable
+  findings. Full gate commands run individually, avoiding setup's shared
+  log/temp cleanup. PostgreSQL validation is the selected third unit, not yet
+  performed; advanced sync overlap/concurrent-write risk remains deferred.
+- Stop here for commit checkpoint. CORS and PostgreSQL are not started;
+  feature-wide Stage 4 review waits for Stage 3 acceptance and approval.
 
 ## Stage 3 selected unit: book-events controller, joined fields and revisions
 
@@ -575,7 +620,7 @@ configuration validation tests belong to the authorized scheduling work.
 Validation: `git diff --check` and exact environment-template value check passed.
 Runtime tests skipped: environment-template and documentation changes only.
 
-Except for completed BE-BOOK/BE-AUTH/BE-CRUD/BE-SEEDS/BE-REVISION/BE-EVENTS and In progress BE-SYNC,
+Except for completed BE-BOOK/BE-AUTH/BE-CRUD/BE-SEEDS/BE-REVISION/BE-EVENTS/BE-SYNC,
 these remain **Not started** as detailed
 business-logic units. Stage 3 is approved, but the user must select each
 session task; table order is not
@@ -587,7 +632,7 @@ permission to choose or implement a unit automatically.
 | BE-AUTH (Completed) | Admin-only account functionality on Users, one-time env provisioning, protected passwords, login and rate limit | BACKEND-2 | Existing User schema; approved auth/provisioning policy | Passing auth/provisioning integration tests and live HTTP smoke; evidence and commit checkpoint above |
 | BE-CRUD (Completed; 35a15f5) | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | CRUD/auth/error/rollback tests and live HTTP CRUD pass; evidence above |
 | BE-REVISION (Completed; uncommitted) | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot and randomized rank contracts | Pinned payloads, 24-hour expiry, eviction/410 recovery and refresh failure tests pass; cross-process live refresh passes |
-| BE-SYNC (In progress; projection implemented) | Incremental event reconciliation and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK; random occupancy rank contract; BE-REVISION for publication | Projection/rank/checkpoint tests pass; cache publication integration remains; advanced concurrency risk deferred |
+| BE-SYNC (Completed; uncommitted publication) | Incremental event reconciliation, atomic revision publication and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK; randomized rank contract; BE-REVISION | Projection/rank/checkpoint and real-cache atomic publication/rollback tests pass; advanced concurrency risk deferred |
 | BE-EVENTS (Completed; uncommitted) | Complete date-span API, bounds, next cursor and restart errors; joined Book fields/rating, never review | BACKEND-4 | BE-REVISION; API contract | Timeline and joined-field contracts pass; live pagination/refresh walkthrough passes |
 | BE-SEEDS (Completed; ae58b2d) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
 | BE-CORS | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight and origin rejection integration tests |
@@ -595,7 +640,7 @@ permission to choose or implement a unit automatically.
 Structural contracts, deterministic fixtures and executable intended-behavior
 tests now exist; see Stage 2 baseline below. BE-BOOK, BE-AUTH, BE-CRUD,
 BE-SEEDS, BE-REVISION and BE-EVENTS are complete; remaining detailed
-implementation tasks remain Not started, except selected BE-SYNC, and are not
+implementation tasks remain Not started and are not
 selected by Stage 3 approval alone.
 
 BE-REVIEW is superseded by embedded Books fields, not completed. Separate Admin

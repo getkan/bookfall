@@ -12,7 +12,7 @@ module Timeline
       snapshot if snapshot && Time.current.to_f < snapshot.fetch("published_at") + RETENTION
     end
 
-    def self.call
+    def self.call(cache: Rails.cache)
       rows = BookEvent.joins(:book).pluck(
         "book_events.id", "book_events.book_id", "book_events.type",
         "book_events.date", "book_events.start_rank",
@@ -34,8 +34,8 @@ module Timeline
         "events" => events
       }
       # Publish the pointer last so a failed build/write leaves the old revision usable.
-      raise "Timeline revision cache write failed" unless Rails.cache.write(key(revision), snapshot, expires_in: RETENTION)
-      raise "Timeline current revision publication failed" unless Rails.cache.write(CURRENT_KEY, revision, expires_in: RETENTION)
+      raise "Timeline revision cache write failed" unless cache.write(key(revision), snapshot, expires_in: RETENTION)
+      raise "Timeline current revision publication failed" unless cache.write(CURRENT_KEY, revision, expires_in: RETENTION)
 
       snapshot
     end

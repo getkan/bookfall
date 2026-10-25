@@ -126,8 +126,11 @@ day and FINISHes on their UTC finish day. When all ranks are occupied, choose
 randomly among the least-used ranks across those groups. Both events share the
 rank; existing ranks survive edits, added completion and reruns. Frontend
 spill/stack handles collisions. Unfinished books consider only the start day.
-Sync currently projects persisted events only; automatic scheduled cache
-publication and external scheduling remain separate work.
+Every sync also publishes a fresh timeline revision, including no-op runs so
+hard deletions are reflected. Event reconciliation, Solid Cache publication
+and successful checkpoint advancement commit in one primary-database transaction.
+Publication failure rolls all three back; older pinned revisions stay usable.
+External invocation scheduling remains deployment work.
 
 ### Public book events and cache refresh
 
@@ -185,7 +188,7 @@ Both retain completed foundation history. Backend timeline pagination,
 explicit cache publication and sync event projection are implemented.
 `bin/rails db:seed` idempotently creates staging Books only; it creates no
 users or BookEvents (run `bin/rails book_events:sync` afterward).
-The backend SQLite suite passes; CORS, scheduled publication integration and
+The backend SQLite suite passes; CORS and
 feature-wide/Postgres acceptance remain outstanding. See
 [backend validation evidence](docs/backend/TASKS.md) for disposable checks.
 Every subproject has independent approvals. The top-level documents cover

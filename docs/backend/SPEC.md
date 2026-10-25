@@ -147,10 +147,11 @@ and Rails mapping are recorded in the structural schema below.
   on `(updated_at, id)` for deterministic incremental selection.
 - `task_checkpoints` stores one row per task name, with a nullable
   `processed_through` watermark separate from attempt start/finish times.
-  Advance the projection watermark only after successful reconciliation,
-  not merely because a scheduled attempt began.
-  Cache publication remains a separate BE-REVISION dependency; projection
-  success does not claim a published/current timeline revision.
+  Advance the watermark only after successful reconciliation and publication,
+  not merely because a scheduled attempt began. Event writes, Solid Cache
+  revision/pointer writes and successful checkpoint update share one primary
+  database transaction. A connection-pool guard fails explicitly if Solid Cache
+  is configured on a separate connection. No-op syncs still publish deletions.
 - Monitoring fields: last_started_at, last_finished_at, last_succeeded_at,
   status (idle/running/succeeded/failed), books_processed, last_error,
   extensible JSON metadata, and row created_at/updated_at.
@@ -280,8 +281,8 @@ the earlier foreign-key/username-label requirement. FRONTEND and DEPLOY do
 not advance. Stage 2 was subsequently accepted and Stage 3 authorized on
 2026-10-24. Model validations, BE-AUTH, book CRUD and Books-only staging seeds
 are implemented. Sync event reconciliation/ranks/checkpoints, public timeline
-pagination and explicit cache publication are implemented; scheduled publication
-integration and CORS remain outstanding.
+pagination, explicit cache publication and sync publication integration are
+implemented; CORS remains outstanding.
 
 ### Structural schema
 
@@ -348,8 +349,9 @@ integration and CORS remain outstanding.
   together; failure rolls back and records only the exception class in a
   separate failed-attempt update, then logs and re-raises.
 - Rank assignment is implemented by backend sync; both events inherit the
-  stable book rank. Explicit cache publication is implemented separately;
-  automatic publication from sync remains outstanding.
+  stable book rank. Sync calls Timeline::Refresh using Solid Cache inside its
+  event/checkpoint transaction. The explicit refresh task remains independently
+  available and never advances the sync checkpoint.
 
 ### HTTP contract
 
