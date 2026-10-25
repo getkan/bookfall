@@ -25,6 +25,38 @@
   is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
 
+## Selected follow-up: public event detail
+
+**Completed (2026-10-25), uncommitted** — BE-EVENT-DETAIL, BACKEND-4.
+
+- User authorized `GET /book-event/:id`. Plan: public current-record lookup,
+  `{ "book_event": {...} }` envelope, shared timeline field serialization and
+  existing JSON not-found behavior. Keep revision-pinned list behavior intact.
+- Reviewed controller/routes, BookEvent, Timeline::Refresh, event integration
+  tests, application error/auth helpers and existing SPEC/TASKS before editing.
+- Shared `BookEvent.with_book_details` query and `timeline_payload` serializer
+  serve both detail and snapshot building. Single join, no User credentials;
+  completed reviews only. Detail reads live data without cache mutation.
+- Four integration tests cover START/FINISH payload parity, live values versus
+  pinned snapshots, null fields/unfinished-review visibility, missing/deleted
+  events and JSON 404 responses.
+- Focused command: `bin/rails test test/integration/book_events_test.rb
+  test/integration/timeline_contract_test.rb
+  test/integration/book_event_sync_publication_test.rb`: **29 tests,
+  595 assertions**, all passing. RuboCop on five touched Ruby files passed.
+- Full `bin/rails test`: **129 tests, 1,656 assertions**, zero failures/errors/
+  skips on SQLite and disposable PostgreSQL. `bin/rails db:prepare`,
+  `bin/rails db:seed:replant` and `bin/rails book_events:sync` passed on both.
+  SQLite `bin/rails zeitwerk:check`, `bin/rubocop` (61 files),
+  `bin/bundler-audit` and
+  `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error` passed.
+- Direct review verified single-query projection, public detail access,
+  same event field whitelist, unchanged ordering/pinning and explicit missing
+  event errors. `git diff --check` passed. Disposable PostgreSQL container,
+  volume and network removed. No schema/dependency/frontend changes needed.
+- Existing review-payload work and unrelated frontend document edits preserved.
+  Stop at the commit checkpoint; no commits or publication authorized.
+
 ## Stage 4 review and provisioning remediation
 
 **Completed (2026-10-24), uncommitted remediation** — BACKEND.
@@ -74,6 +106,30 @@
   `backend/requests.http:8` trailing whitespace. This user-committed collection
   remains untouched per prior direction; do not claim a clean feature-base
   whitespace check. Lifecycle approval/status text is now reconciled.
+- Subsequent user request: include the Book review in public `/book-events`.
+  The implementation returns a `review` key per event, exposes stored review
+  only for completed Books and returns null for unfinished Books, preserving
+  the approved unfinished-review visibility policy. Changed the snapshot cache
+  namespace to v2 so previously published cached pages cannot hide the field;
+  old pinned cursors may expire and must restart. Focused integration tests and
+  validation:
+  - `bin/rails test test/integration/book_events_test.rb
+    test/integration/timeline_contract_test.rb
+    test/integration/book_event_sync_publication_test.rb`: **25 tests,
+    569 assertions**, passed; RuboCop on the three changed Ruby files passed.
+  - Full SQLite `bin/rails test`: **125 tests, 1,630 assertions**, zero
+    failures/errors/skips; `bin/rails zeitwerk:check`, `bin/rubocop`
+    (61 files), `bin/bundler-audit`, Brakeman, `db:seed:replant`,
+    `book_events:sync` and `git diff --check` passed.
+  - Full disposable PostgreSQL `bin/rails test`: **125 tests, 1,630 assertions**,
+    zero failures/errors/skips; `db:seed:replant` and `book_events:sync` passed.
+  - New integration coverage verifies completed review values, null review for
+    unfinished Books (even if a review is stored), exact event field shape,
+    and ignoring cached pre-v2 payloads.
+  - Database change uses ordinary joined columns; review visibility is applied
+    during serialization, with no raw SQL interpolation. No schema or gem
+    changes. Existing unrelated uncommitted `docs/frontend/*` edits were
+    preserved. No frontend implementation or browser validation was needed.
 
 ### Handoff / PR summary (not published)
 
@@ -138,7 +194,7 @@ BACKEND-6. CORS was committed as `aecc469`; user authorized continuing.
   - HTTP walkthrough: approved Authorization/JSON preflight, no cookie credentials,
     rejected unauthorized write, admin login/list/create/show/update/delete,
     finish-before-start **422**, complete **19-event** cursor traversal without
-    duplicates, joined fields/rating without review, paired ranks, new revision
+    duplicates, joined fields/rating, paired ranks, new revision
     after a separate sync process, old cursor retention and deletion publication.
     All assertions passed.
 - Direct acceptance review: migrations and schema-loaded tests agree; primary
@@ -255,8 +311,9 @@ BACKEND-6. CORS was committed as `aecc469`; user authorized continuing.
   conflicting, empty or nonscalar parameters, invalid timestamps/cursors;
   unavailable revisions return 410 with explicit restart instructions.
 - Build immutable serialized revisions from one joined BookEvent/Book query:
-  event identity/date/type/rank, title/author/user_id/rating only. No reviews
-  or credential fields. Continuations and cached initial requests do not
+  event identity/date/type/rank, title/author/user_id/rating, and review for
+  completed Books only. Unfinished review content remains hidden. No credential
+  fields. Continuations and cached initial requests do not
   reload Books. Retention is fixed at up to 24 hours from publication, not
   extended by reads. Write snapshot before current pointer, check both writes;
   failure raises and preserves prior current revision/checkpoint.
@@ -804,7 +861,7 @@ and the uncommitted handoff checkpoint are above.
 | BE-CRUD (Completed; 35a15f5) | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | CRUD/auth/error/rollback tests and live HTTP CRUD pass; evidence above |
 | BE-REVISION (Completed; ae169ef) | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot and randomized rank contracts | Pinned payloads, 24-hour expiry, eviction/410 recovery and refresh failure tests pass; cross-process live refresh passes |
 | BE-SYNC (Completed; publication committed as `69d7dfe`) | Incremental event reconciliation, atomic revision publication and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK; randomized rank contract; BE-REVISION | Projection/rank/checkpoint and real-cache atomic publication/rollback tests pass; advanced concurrency risk deferred |
-| BE-EVENTS (Completed; ae169ef) | Complete date-span API, bounds, next cursor and restart errors; joined Book fields/rating, never review | BACKEND-4 | BE-REVISION; API contract | Timeline and joined-field contracts pass; live pagination/refresh walkthrough passes |
+| BE-EVENTS (Completed; ae169ef; review payload follow-up uncommitted) | Complete date-span API, bounds, next cursor and restart errors; joined Book fields/rating/review | BACKEND-4 | BE-REVISION; API contract | Timeline joined-field/review visibility tests and full 125-test SQLite/PostgreSQL suites pass |
 | BE-SEEDS (Completed; ae58b2d) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
 | BE-CORS (Completed; aecc469) | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight, origin rejection, unchanged auth and full SQLite/PostgreSQL gates pass |
 | BE-ACCEPTANCE (Completed; 30b11d7) | Disposable PostgreSQL acceptance | BACKEND-1/2/3/4/5/6 | Completed implementation units | Full suite, fresh production-configured migrations, Solid Cache and live cross-process HTTP walkthrough pass |

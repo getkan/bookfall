@@ -83,9 +83,15 @@ Accept: application/json
 GET {{baseUrl}}/books
 Accept: application/json
 
-### Timeline first page (200); public, no authentication
+### Timeline first page (200); public, no authentication; completed-book reviews included
 # @name timeline
 GET {{baseUrl}}/book-events
+Accept: application/json
+
+### Public event detail (200); uses the first timeline event's ID, not its book_id
+# Run the timeline request above first; it must return at least one event.
+# @name bookEvent
+GET {{baseUrl}}/book-event/{{timeline.response.body.$.events[0].id}}
 Accept: application/json
 
 ### Timeline continuation (200); send only if timeline.next_cursor is non-null

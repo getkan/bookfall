@@ -1,10 +1,10 @@
 module Timeline
   class Refresh
-    CURRENT_KEY = "timeline:v1:current"
+    CURRENT_KEY = "timeline:v2:current"
     RETENTION = 24.hours
 
     def self.key(revision)
-      "timeline:v1:revision:#{revision}"
+      "timeline:v2:revision:#{revision}"
     end
 
     def self.read(revision)
@@ -13,19 +13,11 @@ module Timeline
     end
 
     def self.call(cache: Rails.cache)
-      rows = BookEvent.joins(:book).pluck(
-        "book_events.id", "book_events.book_id", "book_events.type",
-        "book_events.date", "book_events.start_rank",
-        "books.user_id", "books.title", "books.author", "books.rating"
-      )
-      rows.sort_by! { |id, book_id, type, date, rank, *| [ date, type == "FINISH" ? 0 : 1, rank, book_id, id ] }
-      events = rows.map do |id, book_id, type, date, rank, user_id, title, author, rating|
-        {
-          "id" => id, "book_id" => book_id, "type" => type,
-          "date" => date.utc.iso8601(date.usec.zero? ? 0 : 6), "start_rank" => rank,
-          "user_id" => user_id, "title" => title, "author" => author, "rating" => rating
-        }
+      rows = BookEvent.with_book_details.to_a
+      rows.sort_by! do |event|
+        [ event.date, event.type == "FINISH" ? 0 : 1, event.start_rank, event.book_id, event.id ]
       end
+      events = rows.map(&:timeline_payload)
       revision = SecureRandom.uuid
       snapshot = {
         "revision" => revision, "published_at" => Time.current.to_f,

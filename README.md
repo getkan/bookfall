@@ -185,7 +185,9 @@ Backend implementation, SQLite/PostgreSQL acceptance and approved Stage 4
 feature-wide review are complete; remediation awaits commit/handoff. Frontend remains
 in requirements planning (Stage 1).
 Both retain completed foundation history. Backend timeline pagination,
-explicit cache publication and sync event projection are implemented.
+explicit cache publication, sync event projection and completed-book reviews
+in timeline events are implemented. Timeline event reviews remain null for
+unfinished books.
 `bin/rails db:seed` idempotently creates staging Books only; it creates no
 users or BookEvents (run `bin/rails book_events:sync` afterward).
 Direct-browser CORS permits only `FRONTEND_ORIGIN`, including Authorization and

@@ -54,7 +54,7 @@ class BookEventSyncPublicationTest < ActionDispatch::IntegrationTest
       fault = lambda do |*args|
         payload = args.last
         key = payload[:key].to_s
-        next unless key.include?("timeline:v1:")
+        next unless key.include?("timeline:v2:")
         next if stage == "pointer" && !key.end_with?(Timeline::Refresh::CURRENT_KEY)
 
         raise "Injected cache publication failure"

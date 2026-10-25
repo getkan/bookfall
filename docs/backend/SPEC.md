@@ -375,6 +375,15 @@ approval. Browser/proxy choice does not change these API permissions.
 | `PATCH /books/:id` with `{ "book": {...} }` | 200, `{ "book": {...} }` |
 | `DELETE /books/:id` | 204, empty body |
 | `GET /book-events` with optional before, after, or cursor | 200, timeline envelope below |
+| `GET /book-event/:id` | 200, `{ "book_event": {...} }`, public event detail |
+
+Event detail uses the BookEvent ID, not the Book ID, and returns current
+persisted event data with the same joined fields as a timeline event, including
+rating and completed-book review (null for unfinished Books). It does not read
+or update timeline snapshots and takes no revision/cursor parameter. A deleted
+or missing event returns 404 `{ "error": { "code": "not_found", "message":
+"Book event not found" } }`. Public event detail does not change admin-only
+access to `/books/:id`.
 
 Books serialize id, opaque user_id, title, author, started_at, finished_at.
 Completed books additionally expose rating/review (possibly null); unfinished
@@ -456,16 +465,20 @@ Timeline response shape:
     {
       "id": 1, "book_id": 1, "type": "START",
       "date": "2026-01-01T12:00:00Z", "start_rank": 1,
-      "user_id": null, "title": "Example", "author": "Example author", "rating": 5
+      "user_id": null, "title": "Example", "author": "Example author", "rating": 5,
+      "review": "A thoughtful read."
     }
   ],
   "next_cursor": "opaque-signed-cursor"
 }
 ```
 
-Each event joins its Book for title, author, user_id and nullable rating,
-regardless of completion. Reviews are explicitly excluded by user decision;
-no User join/account fields are exposed. No `reader` field is promised while
+Each event joins its Book for title, author, user_id, nullable rating and review.
+The `review` key is always present; unfinished Books return null so an
+unfinished review remains hidden, while completed Books return the stored value
+or null. Timeline cache keys use a new version namespace for this payload shape;
+pre-change pinned cursors may return 410 and require restarting pagination.
+No User join/account fields are exposed. No `reader` field is promised while
 its source is unresolved. FINISH is the API
 type; FINISHED remains a display term. Stable event order is timestamp, explicit
 type priority FINISH before START, rank, then book_id/id to resolve reused ranks.
