@@ -2,8 +2,10 @@
 
 ## FRONTEND lifecycle
 
-Outcome: shared calendar-row timeline with deterministic, collision-safe
-labels and continuous revision-consistent loading.
+Outcome: Next.js/React landing page, shared calendar-row timeline with
+deterministic, collision-safe labels and continuous revision-consistent
+loading, public BookEvent details, authenticated admin book management, and a
+visual design adapted from the selected reference project.
 [SPEC](SPEC.md) owns requirements; [TASKS](TASKS.md) owns evidence/checkpoints.
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
@@ -16,8 +18,9 @@ does not authorize backend work or parallel implementation.
 
 ### Stage 1: Understanding the problem
 
-- Outputs: FRONTEND-1 through FRONTEND-5, environment baseline, accepted
-  layout direction and explicit open decisions in SPEC.
+- Outputs: FRONTEND-0 through FRONTEND-7, six application routes, environment
+  baseline, accepted layout and visual design directions, and explicit open
+  decisions in SPEC.
 - Exit: geometry/minimum viewport, date wording, user access, recovery UX,
   accessibility, and material performance/integration constraints agreed.
 - Evidence: document split and replacement layout approved 2026-10-24.
@@ -61,3 +64,12 @@ does not authorize backend work or parallel implementation.
   checks, not full browser acceptance; see TASKS.
 - 2026-10-24: Restart requirements in a separate FRONTEND lifecycle; replace
   slider/gap and unresolved overlap planning with the accepted row model.
+- 2026-10-25: Record the user-selected landing, timeline, book-detail and admin
+  routes. Admin book CRUD, hidden direct-URL admin entry, BookEvent-ID public
+  details, and admin-only rating/review editing are in scope. Direct lookup
+  design and other Stage 1 decisions remain open. Stage 2 is not approved.
+- 2026-10-25: User selected `miss-micros-magick-wheel` as the visual design
+  reference. FRONTEND-7 records its adaptable dark palette, monospace-led type,
+  outlined panels and restrained book imagery; no stage advance implied.
+- 2026-10-25: User clarified that light and dark modes may extend the reference
+  styling; its visual identity remains the basis, not a dark-only constraint.

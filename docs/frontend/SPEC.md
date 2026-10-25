@@ -14,6 +14,30 @@ planned. [Backend SPEC](../backend/SPEC.md) owns the shared API contract.
 
 ## Requirements
 
+### FRONTEND-0: Application routes and API integration
+
+- Use the existing Next.js/React application in `frontend/`, consuming the
+  Rails API in `backend/`; do not create a second frontend project.
+- Provide the following routes. Next.js dynamic route segments use `[id]`.
+  In `/timeline/<id>`, `<id>` is a BookEvent ID. In admin book routes it is
+  a Book ID.
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Landing page |
+| `/timeline` | Book timeline displaying BookEvents |
+| `/timeline/<id>` | Public details from a specific BookEvent |
+| `/admin` | Select books to edit or delete, or navigate to add a book |
+| `/admin/book/<id>` | Edit a book |
+| `/admin/book/add` | Add a book |
+
+- Keep the literal `add` route distinct from the dynamic book-ID route.
+- The admin area is intentionally unlinked from public-page navigation and
+  reached by direct URL. An unauthenticated admin visitor is prompted to log
+  in at `/admin`; no additional login route is required.
+- Landing-page content remains to be agreed. The route list does not authorize
+  changing backend access policy.
+
 ### FRONTEND-1: Timeline content
 
 - Render all club book records, with START and FINISHED labels paired by
@@ -22,9 +46,16 @@ planned. [Backend SPEC](../backend/SPEC.md) owns the shared API contract.
   `Reader - end_date`, followed by `Title by Author`. Dates inside labels
   versus the layout plan's "dates are not rendered" wording need explicit
   clarification; do not invent a date axis or day lines.
-- A detail view fetches a book and, if completed, its review. The current
-  planned detail endpoint is admin-only; settle the intended viewer before
-  designing navigation or adding admin-facing pages.
+- `/timeline/<id>` identifies a BookEvent by its event ID and displays only
+  information available from the public `GET /book-events` event payload.
+  It must not use the event ID as a Book ID.
+- The public event payload includes event identity, book identity, type, date,
+  rank, reader placeholder, title, author and optional rating. Reviews are
+  explicitly excluded from the public payload. Do not expose reviews or make
+  `GET /books/:id` public; that endpoint remains admin-only.
+- The current backend API only retrieves events through paginated date spans,
+  not directly by event ID. Define a reliable direct-navigation lookup for
+  `/timeline/<id>` during Stage 2 without changing public book access policy.
 
 ### FRONTEND-2: Calendar-row geometry
 
@@ -84,8 +115,48 @@ planned. [Backend SPEC](../backend/SPEC.md) owns the shared API contract.
   requests versus a Next.js proxy and consequent CORS behavior.
 - Define keyboard/screen-reader access, reading order, focus preservation,
   responsive support, and measurable performance targets during Stage 1.
-- Additional accounts/roles and production review entry are not planned.
-  Admin login/CRUD UI scope is not established by the existence of API routes.
+- Additional accounts/roles are not planned. Admin book management is now
+  explicitly in scope under FRONTEND-6, including rating and review fields.
+  The backend permits admin writes to both fields.
+
+### FRONTEND-6: Admin book management
+
+- Require admin authentication for book listing, creation, editing, and
+  deletion. The backend remains the authorization authority; hiding controls
+  alone is insufficient.
+- `/admin` consumes `GET /books`, provides navigation to the add/edit routes,
+  and allows deletion through `DELETE /books/:id`.
+- `/admin/book/<id>` loads `GET /books/:id` and saves changes through
+  `PATCH /books/:id`.
+- `/admin/book/add` creates a book through `POST /books`.
+- Authenticate through `POST /login` using the memory-only bearer-token
+  lifecycle in FRONTEND-5. Keep admin entry unlinked from public navigation;
+  offer login at `/admin` for unauthenticated direct visits.
+- Edit title, author, reader placeholder (`user_id`), start and finish dates,
+  rating and review. Rating and review are admin-only.
+- Define delete confirmation, post-save navigation,
+  validation feedback, and expired-session behavior before implementation.
+
+### FRONTEND-7: Visual design direction
+
+- Base the frontend's visual design on the user's reference project,
+  `miss-micros-magick-wheel`, especially its `app/globals.css`,
+  `app/layout.tsx`, and `app/page.tsx`. Adapt the design to Bookfall's
+  reading timeline and admin tasks; do not reproduce wheel-specific branding
+  or let decorative effects interfere with timeline readability.
+- Use the reference's dark, near-black background (`#0b0e14`), darker panel
+  surface (`#050a0f`), off-white primary text and borders (`#f5f5f5`), and
+  muted slate accents (`#1f2937`, `#9ca3af`) as the design basis. The visual
+  system may expand to include light and dark modes; alternate themes should
+  retain the same recognizable palette relationships and panel treatment.
+- Use a clean monospace-led typographic style with practical system fallbacks;
+  do not assume the reference machine's `"SF Mono Regular"` font is installed.
+- Favor clear, rounded, outlined panels and restrained book-themed imagery.
+  Keep timeline labels and reading information visually dominant, with
+  decoration secondary.
+- Honor `prefers-reduced-motion`; decorative motion must not be required to
+  understand or use any page. Maintain readable contrast, responsive layout,
+  and visible keyboard focus across the public and admin routes.
 
 ## Environment baseline
 
@@ -106,8 +177,11 @@ audit evidence; review compatible remediation before expanding dependencies.
 
 ## Acceptance coverage
 
+- FRONTEND-0: route checks verify all six pages, BookEvent-ID detail lookup,
+  Book-ID admin navigation, unlinked admin entry, and literal `add` routing.
 - FRONTEND-1: component/browser checks verify content, in-progress books,
-  cross-span pairs, and agreed detail/access behavior.
+  cross-span pairs, event-ID direct navigation, and that public views never
+  expose reviews or call admin-only book routes.
 - FRONTEND-2/3: geometry tests at all four column counts and immediately
   below thresholds; empty/single/both-type days; dense same-type collisions,
   occupied neighbors, edge spill, long labels, narrow screens, and resize.
@@ -116,6 +190,14 @@ audit evidence; review compatible remediation before expanding dependencies.
   empty-span advancement, terminal behavior, stable loaded-span heights,
   coherent revision switches, visible recovery errors, and scroll anchoring.
 - FRONTEND-5: test agreed auth lifecycle, accessibility, and environment access.
+- FRONTEND-6: integration/browser checks verify authorized listing, add,
+  edit and delete, rejected unauthorized operations, visible API failures,
+  all agreed editable fields including rating/review, and the agreed form and
+  session behavior.
+- FRONTEND-7: browser review checks the reference-based visual identity in
+  supported light/dark modes, monospace-led type, panel treatment, book-themed
+  restraint, responsive layouts, focus visibility, contrast, and reduced-motion
+  behavior across representative public and admin pages.
 - Lint/build and the future unit/integration gate pass. Verify seeded
   end-to-end behavior in a real browser, not HTTP response alone.
 
@@ -126,7 +208,9 @@ audit evidence; review compatible remediation before expanding dependencies.
   direction/position; exact UX for empty/loading/error/restart states.
 - UTC storage and UTC calendar-day grouping are confirmed backend constraints;
   display formatting must not silently move events to browser-local days.
-- Public timeline versus restricted viewing and detail access; admin UI scope.
+- Direct lookup of a BookEvent ID through date-paginated timeline data.
+- Landing-page content and navigation; admin delete confirmation,
+  post-save navigation, validation feedback and expired-session behavior.
 - Accessibility/browser support, performance budgets, unloaded-range sizing,
   and API access approach shared with BACKEND.
 
@@ -137,5 +221,20 @@ audit evidence; review compatible remediation before expanding dependencies.
   No Stage 2 or implementation approval implied.
 - 2026-10-24: Own the deferred 1..12 rank assignment/reuse decision during
   frontend implementation. UTC defines timeline days. No stage advance implied.
+- 2026-10-25: User specified Next.js/React consuming the backend API and the
+  six landing, timeline, book-detail, and admin routes above. Admin book CRUD
+  UI is in scope. Detail access and remaining Stage 1 decisions are unresolved;
+  no Stage 2 or implementation approval implied.
+- 2026-10-25: User clarified that `/timeline/<id>` uses a BookEvent ID and
+  public details come from the event payload; book/review endpoints remain
+  private and review is not public. Admin entry is unlinked and reached by
+  direct URL; rating/review are editable in admin forms. Direct event-ID
+  lookup through paginated timeline data remains a Stage 2 design item.
+- 2026-10-25: User selected `miss-micros-magick-wheel` as the frontend visual
+  design reference. FRONTEND-7 records its dark palette, monospace-led type,
+  rounded outlined panels, restrained book imagery, responsive/accessibility
+  requirements, and adaptation rather than wheel-specific copying.
+- 2026-10-25: User clarified that light and dark modes may be supported; the
+  reference styling remains the visual basis rather than a dark-only mandate.
 - [Next.js docs](https://nextjs.org/docs), [Next.js Learn](https://nextjs.org/learn),
   [React Learn](https://react.dev/learn).
