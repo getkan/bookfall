@@ -15,12 +15,16 @@ plus Books timestamps and Users. The later Stage 2 clarification makes
 `user_id` a nullable string placeholder without a user association or ownership
 behavior. Non-admin account functionality is out of scope; the reader-label
 source remains deferred. See [Backend SPEC](backend/SPEC.md).
-The bounded rank supersedes the unbounded dense rank assumed below; assignment,
-reuse and tie order are deferred to frontend implementation, and cycling is
-not approved. This deferral is not a backend Stage 1 blocker.
+The bounded rank supersedes the earlier unbounded dense rank.
+Approved 2026-10-24: backend sync randomly selects an unused rank in 1..12
+across STARTs on the UTC start day and FINISHes on the UTC finish day.
+If none is unused across both groups, randomly choose among ranks with the
+lowest combined event count. For unfinished books, consider only STARTs.
+Reuse the existing START rank (otherwise FINISH rank) for both events, even
+after date edits or adding completion. No cycling or automatic reshuffle.
+Frontend spill/stack handles overflow; equal-rank tie order remains to refine.
 Timestamps are stored in UTC and calendar-day grouping also uses UTC.
-Coordinate the deferred rank contract before implementing dependent behavior;
-earlier rank assumptions do not override the new schema.
+Earlier rank assumptions do not override this approved allocation policy.
 
 ## Problem and approach
 
@@ -122,13 +126,13 @@ requires an allocator over both label intervals.
 2. Specify book-level rank assignment.
    - Goal: give every book one stable key that both events inherit.
    - Ownership: [Backend SPEC](backend/SPEC.md), BACKEND-3.
-   - Approach: assign a dense `start_rank` per book ordered by
-     (`start_date`, `book_id`). Both events carry the book's rank. Any
-     insert or date change that alters ranks produces a new revision.
-     No server-side column allocation.
-   - Validation: split event pairs share a rank, unfinished books get a
-     rank, backdated insert shifts ranks only within a new revision,
-     identical input yields identical ranks.
+   - Approach: randomly choose a rank using the daily/type occupancy policy
+     above. Both events carry the same stable rank. Existing assignments
+     survive reruns, backdated inserts, date edits and added completion.
+     No server-side column allocation; persisted revisions pin assignments.
+   - Validation: pairs share a rank, twelve available ranks fill randomly
+     without reuse, overflow minimizes combined usage, relevant UTC day/type
+     groups alone affect selection, and reruns preserve existing ranks.
 
 3. Specify synchronization and paginated API semantics.
    - Goal: keep events and assignments consistent across requests and updates.

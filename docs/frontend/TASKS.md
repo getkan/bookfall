@@ -17,7 +17,7 @@ Stage 2 contracts/test baseline, Stage 3 approval, and user task selection.
 | --- | --- | --- | --- | --- |
 | FE-HARNESS | Structural components, deterministic fixtures, executable tests | All frontend requirements | Stage 2 approval; tooling choice | Test discovery and intended end-to-end baseline; lint/build |
 | FE-GEOMETRY | Calendar rows and fixed column geometry | FRONTEND-2 | Agreed dimensions/narrow-screen behavior; FE-HARNESS | All thresholds, row types, gutters, text limits |
-| FE-RANK | Decide 1..12 rank assignment/reuse and tie order during frontend implementation | FRONTEND-3 | User-selected implementation scope; coordinate backend contract | More than 12 books, equal ranks, event-pair consistency, deterministic updates |
+| FE-RANK | Consume backend-assigned stable 1..12 ranks and refine equal-rank tie order | FRONTEND-3 | Approved backend random daily/type occupancy contract; frontend stage approvals | More than 12 books, equal ranks, event-pair consistency, deterministic rendering |
 | FE-RESOLVE | Rank-based base columns and spill/stack resolver | FRONTEND-3 | FE-GEOMETRY, FE-RANK | Pure deterministic results, no rectangle overlap/overflow, dense dates and resize |
 | FE-LOAD | API client, bounds, date spans, revision restart | FRONTEND-4 | Backend contract; FE-HARNESS | Empty/dense spans, cross-page pairs, no mixed revisions, explicit errors/retry |
 | FE-TIMELINE | Label rendering and continuous scroll integration | FRONTEND-1/2/3/4 | FE-RESOLVE, FE-LOAD | Text/in-progress cases; stable loaded heights; measured anchoring and real-browser seeded checks |

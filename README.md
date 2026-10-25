@@ -57,8 +57,8 @@ npm run dev -- --port 3000
 ```
 
 The frontend is available at <http://localhost:3000>. The Rails API listens on
-<http://localhost:3001>. The timeline endpoint currently returns an explicit
-HTTP 501 response until implemented. Login, book CRUD and admin authorization are implemented;
+<http://localhost:3001>. Login, book CRUD, admin authorization and the public
+timeline endpoint are implemented;
 book routes reject missing or
 invalid credentials with 401 and authenticated non-admin users with 403.
 
@@ -103,13 +103,59 @@ Run login first to capture the bearer token, then create the disposable sample
 book before its read/update/delete requests. The delete request targets that
 sample's returned ID. Timeline requests are public; send continuation requests
 only when the preceding named response has a non-null `next_cursor`.
-Book requests support the documented success/error statuses; the timeline
-endpoint still returns 501.
+Book and timeline requests support the documented success/error statuses.
 Book edits update existing associated event dates without replacing their IDs
 or ranks; clearing completion removes the FINISH event, and deletion removes
 the Book and its events atomically. New events remain the responsibility of sync.
-Book events appear only after synchronization is implemented and
-run, and cached timelines may require a refresh to expose changes.
+Create missing events after seeding or book changes with:
+
+```sh
+cd backend
+bin/rails book_events:sync
+```
+
+The first run processes all Books; subsequent runs use an inclusive updated_at
+checkpoint and a captured run-start bound. Event writes and checkpoint updates
+are atomic; failed runs log/raise and retain the prior watermark for retry.
+The task records status, counts, times and sanitized failure class in
+`TaskCheckpoint` under `book_events_sync`. Run one sync at a time; advanced
+concurrent-write/overlap coordination remains deferred.
+
+New books receive a random rank in 1..12 unused by STARTs on their UTC start
+day and FINISHes on their UTC finish day. When all ranks are occupied, choose
+randomly among the least-used ranks across those groups. Both events share the
+rank; existing ranks survive edits, added completion and reruns. Frontend
+spill/stack handles collisions. Unfinished books consider only the start day.
+Sync currently projects persisted events only; automatic scheduled cache
+publication and external scheduling remain separate work.
+
+### Public book events and cache refresh
+
+`GET /book-events` returns 30-day UTC spans with timeline bounds, revision and
+next_cursor. Use one of `after`, `before` (full timestamp with timezone), or
+the returned opaque `cursor`; do not combine them. Each day is returned whole,
+including dense dates. Empty spans still advance until next_cursor is null.
+
+Events join Books for title, author, nullable opaque user_id and nullable
+rating. Reviews and User credentials are never included. There is no User
+join because Books.user_id is a string placeholder, not a foreign key.
+
+Serialized revisions are immutable for up to 24 hours; pinned cursors retain
+their original event and Book values after edits or refresh. Missing/expired
+revisions return 410 revision_expired and require an explicit initial restart.
+Initial requests build a revision if the current one is unavailable.
+
+After sync or Book edits/deletions, publish updated committed data explicitly:
+
+```sh
+cd backend
+bin/rails book_events:refresh_cache
+```
+
+Refresh preserves older available revisions and does not advance the sync
+checkpoint. Development and production use shared database-backed Solid Cache,
+so the task publishes to the running API process. Cache write failures raise;
+there is no successful empty-data fallback.
 
 ## Validation
 
@@ -135,11 +181,12 @@ npm run build
 Backend Stage 2 is complete and Stage 3 is in progress; models, BE-AUTH and BE-CRUD
 are implemented. Other tasks require selection; frontend remains
 in requirements planning (Stage 1).
-Both retain completed foundation history. Backend product
-timeline and synchronization remain explicit stubs.
+Both retain completed foundation history. Backend timeline pagination,
+explicit cache publication and sync event projection are implemented.
 `bin/rails db:seed` idempotently creates staging Books only; it creates no
-users or BookEvents (run `bin/rails book_events:sync` once implemented).
-Unimplemented intended-behavior tests remain red. See
+users or BookEvents (run `bin/rails book_events:sync` afterward).
+The backend SQLite suite passes; CORS, scheduled publication integration and
+feature-wide/Postgres acceptance remain outstanding. See
 [backend validation evidence](docs/backend/TASKS.md) for disposable checks.
 Every subproject has independent approvals. The top-level documents cover
 deployment, not application tasks.

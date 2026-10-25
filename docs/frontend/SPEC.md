@@ -44,10 +44,11 @@ planned. [Backend SPEC](../backend/SPEC.md) owns the shared API contract.
 
 ### FRONTEND-3: Deterministic collision resolution
 
-- Rank assignment/reuse for values 1..12 inclusive is explicitly deferred to
-  frontend implementation (2026-10-24). Decide the algorithm and tie order
-  there; the previous unbounded dense chronological rank is superseded.
-  Coordinate any required backend storage/API changes before implementing them.
+- Rank assignment/reuse for values 1..12 is owned by backend sync under the
+  approved randomized UTC day/type occupancy policy in [Backend SPEC](../backend/SPEC.md).
+  Both events retain their shared rank, including date edits and completion
+  added later. Frontend handles overflow/collisions; refine equal-rank tie order
+  during frontend design. This supersedes the earlier assignment deferral.
 - Both events inherit `start_rank`; their base column is `start_rank % N`,
   even across date spans. Reserve label rectangles, not full reading spans.
 - Resolve each date/type region as a pure function of its events and `N`,

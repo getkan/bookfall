@@ -8,7 +8,7 @@ Evidence and checkpoints: [TASKS](TASKS.md).
 
 | ID | Lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- |
-| BACKEND | Stage 3: detailed design and implementation | In progress; models and BE-AUTH completed | Frontend-owned rank assignment deferred | Stage 4 after implementation and passing acceptance |
+| BACKEND | Stage 3: detailed design and implementation | In progress; CRUD, sync projection and timeline/cache implemented | Scheduled publication integration and CORS pending | Stage 4 after implementation and passing acceptance |
 
 Frontend integration depends on this API. Deployment depends on both completed
 subprojects. Neither dependency grants permission to advance another lifecycle.
@@ -53,7 +53,12 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
   were committed as `ae58b2d`. User then selected completion of BE-CRUD:
   detail/writes, existing-event reconciliation and atomic deletion pass focused
   tests and a live HTTP walkthrough. Stop at this unit's commit checkpoint.
-  Timeline and sync remain stubbed; new event creation remains with sync.
+  BE-CRUD committed as `35a15f5`. User then selected sync and approved random
+  daily/type occupancy ranks; event projection is implemented. User then
+  selected BookEventsController with joined title/author/user_id/rating,
+  explicitly excluding review. Timeline pagination and explicit cache refresh
+  are implemented and all SQLite tests pass. BE-SYNC overall remains In progress
+  for scheduled publication integration. Stop at the unit commit checkpoint.
 - Implement only user-selected units with model/unit and integration tests:
   domain, auth, CRUD, ranks/revisions, pagination, seed data, and CORS.
 - Reuse completed database configuration rather than reimplementing it.
@@ -74,8 +79,9 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 
 - Snapshot retention/storage and response schemas are approved in SPEC.
   Event-dense spans and cross-app drift still need implementation validation.
-  Rank generation depends on frontend design; advanced sync concurrency is
-  deferred with residual race risk, not claimed solved.
+  Rank generation uses the approved backend randomized policy; frontend
+  equal-rank collision tie order remains to refine. Advanced sync concurrency
+  is deferred with residual race risk, not claimed solved.
 - Rails scaffold and local production Postgres/cache configuration were
   completed previously; evidence remains in TASKS, not rerun here.
 - 2026-10-24: Restart requirements in a separate BACKEND lifecycle. Replace

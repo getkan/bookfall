@@ -9,7 +9,7 @@ but this document authorizes no parallel implementation or stage transitions.
 
 | ID | Outcome and owning roadmap | Current lifecycle stage | Status | Dependencies | Next approval |
 | --- | --- | --- | --- | --- | --- |
-| BACKEND | [Rails data and revision-pinned timeline API](backend/ROADMAP.md) | Stage 3: detailed design and implementation | In progress; models and BE-AUTH completed | Frontend-owned rank assignment deferred | Backend Stage 4 after implementation and acceptance |
+| BACKEND | [Rails data and revision-pinned timeline API](backend/ROADMAP.md) | Stage 3: detailed design and implementation | In progress; CRUD, sync projection and timeline/cache implemented | Scheduled publication integration and CORS pending | Backend Stage 4 after implementation and acceptance |
 | FRONTEND | [Calendar-row timeline and collision-safe rendering](frontend/ROADMAP.md) | Stage 1: requirements restart | In progress | Shared layout; backend API contract and implementation | Frontend Stage 2, after open decisions |
 | DEPLOY | Staging and production deployment | Stage 1: deferred | Blocked | BACKEND and FRONTEND completed, including Stage 4 | Begin deployment planning after both complete |
 

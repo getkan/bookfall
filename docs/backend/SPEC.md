@@ -7,7 +7,8 @@ timeline and admin-authorized book management, with a Users table for admin acco
 Non-admin user functionality is outside this project's current scope.
 [Roadmap](ROADMAP.md) and [tasks](TASKS.md) track its independent lifecycle,
 Stage 2 completed and Stage 3 authorized 2026-10-24; model work and BE-AUTH
-and book CRUD are implemented. Other implementation requires user-selected tasks.
+and book CRUD, event projection and timeline pagination/cache revisions are
+implemented. Other implementation requires user-selected tasks.
 [Deployment](../SPEC.md) follows completion of both apps.
 
 The accepted [shared timeline layout](../BOOKEVENT_TIMELINE_LAYOUT_PLAN.md)
@@ -87,14 +88,15 @@ and Rails mapping are recorded in the structural schema below.
 - BookEvents is now a SQL table. Preserve one START and, only if completed,
   one FINISH event per book, unique by `(book_id, type)`, synchronized with
   Books `started_at`/`finished_at`. Independent event editing is not assumed.
-- Both events must share the book's rank across date spans. The requested
-  bounded rank conflicts with the shared layout's dense chronological rank
-  ordered by start time and book identity. The 1..12 bound is approved;
-  assignment/reuse and deterministic tie order are explicitly deferred to
-  frontend implementation. Cycling after 12 is not approved. This is not a
-  backend Stage 1 decision blocker; keep the 1..12 storage/API constraint and
-  pair consistency, without inventing an allocator or placeholder default.
-  Record any later backend contract changes as a cross-subproject dependency.
+- Both events share one persisted rank across date spans. Approved 2026-10-24:
+  backend sync randomly selects an unused rank in 1..12 across START events
+  on the book's UTC start day and FINISH events on its UTC finish day.
+  If none is unused across both groups, randomly select among ranks with the
+  lowest combined event count. Unfinished books consider only the start day.
+  Existing START rank wins (otherwise an existing FINISH rank); reuse it for
+  both events on replay, date edits and newly added completion, even if that
+  creates a collision. No cycling, global reshuffle or reserved reading span.
+  Frontend spill/stack handles collisions; frontend tie-order refinement remains.
 - The shared layout uses the display term FINISHED; the selected stored event
   type is FINISH. Define API/display mapping explicitly. Rails reserves `type`
   for single-table inheritance; retain the requested name with an explicit
@@ -145,14 +147,16 @@ and Rails mapping are recorded in the structural schema below.
   on `(updated_at, id)` for deterministic incremental selection.
 - `task_checkpoints` stores one row per task name, with a nullable
   `processed_through` watermark separate from attempt start/finish times.
-  Advance the watermark only after successful reconciliation/publication,
+  Advance the projection watermark only after successful reconciliation,
   not merely because a scheduled attempt began.
+  Cache publication remains a separate BE-REVISION dependency; projection
+  success does not claim a published/current timeline revision.
 - Monitoring fields: last_started_at, last_finished_at, last_succeeded_at,
   status (idle/running/succeeded/failed), books_processed, last_error,
   extensible JSON metadata, and row created_at/updated_at.
 - Rake entry point: `bin/rails book_events:sync`, delegating to
-  `BookEventSync.call`. Stage 2 provides explicit failing stubs, not a scheduler
-  or business logic. Deployment owns invocation infrastructure and must read
+  `BookEventSync.call`. Stage 3 implements reconciliation/rank allocation and
+  durable attempt monitoring, not a scheduler. Deployment owns invocation infrastructure and must read
   `BOOK_EVENTS_SYNC_INTERVAL_SECONDS`, a positive integer in seconds with
   default `600` (10 minutes), documented in the backend environment template.
   Invalid values must fail explicitly when scheduling is configured, not
@@ -174,9 +178,9 @@ and Rails mapping are recorded in the structural schema below.
   dependent event removal on deletion; publish deletions in new revisions
   without modifying still-cached pinned revisions. Scheduled publication supersedes the earlier
   implication that all event synchronization runs inside each HTTP write.
-- Rank assignment is still deferred. No sync allocator or arbitrary rank default
-  is authorized; first-run generation remains dependent on the eventual rank
-  contract. Fixtures have explicit test ranks, not an approved algorithm.
+- Rank allocation uses the approved randomized daily/type occupancy policy.
+  Fixtures retain explicit ranks; production seed Books receive ranks at sync,
+  not during seeding. First run processes all books up to the captured bound.
 
 ## Environment baseline
 
@@ -185,8 +189,8 @@ in [.ruby-version](../../backend/.ruby-version), API-only scaffold initially
 containing only `/up`. Stage 2 now adds structural User/Book/BookEvent models
 and explicit HTTP 501 product routes in [routes](../../backend/config/routes.rb).
 bcrypt is installed for password structure; `rack-cors` remains commented out.
-Local API port is 3001. BE-AUTH login, admin provisioning, book authorization
-and book CRUD are implemented; the public timeline remains a 501 stub.
+Local API port is 3001. BE-AUTH login, admin provisioning, book authorization,
+book CRUD and public timeline pagination are implemented.
 
 [Database configuration](../../backend/config/database.yml) uses SQLite for
 development/test and a single production Postgres database from `DATABASE_URL`
@@ -232,9 +236,9 @@ Stage 3 tests.
 - Advanced concurrent-write/overlap coordination is deferred; preserve the
   documented race risk rather than claim it solved.
 
-Rank assignment/reuse is deferred to frontend implementation by user decision,
-not an unresolved backend requirements question. Backend design must expose
-the dependency without silently choosing cycling, random values, or defaults.
+Rank assignment/reuse is now owned by backend sync under the approved
+randomized policy above, superseding the earlier frontend deferral.
+Frontend layout still resolves collisions deterministically from stored ranks.
 
 Stage 2 architecture, skeletons, deterministic fixtures and expected-red
 integration baseline were accepted on 2026-10-24. Stage 3 is authorized.
@@ -275,7 +279,9 @@ Authorization: user approved BACKEND Stage 2 on 2026-10-24 and confirmed
 the earlier foreign-key/username-label requirement. FRONTEND and DEPLOY do
 not advance. Stage 2 was subsequently accepted and Stage 3 authorized on
 2026-10-24. Model validations, BE-AUTH, book CRUD and Books-only staging seeds
-are implemented; timeline and sync business logic remains unimplemented.
+are implemented. Sync event reconciliation/ranks/checkpoints, public timeline
+pagination and explicit cache publication are implemented; scheduled publication
+integration and CORS remain outstanding.
 
 ### Structural schema
 
@@ -293,7 +299,8 @@ are implemented; timeline and sync business logic remains unimplemented.
   start_rank. Unique `(book_id, type)`; indexes for chronological queries.
   Checks: type START/FINISH, rank 1..12 inclusive. Disable Rails STI for type.
   Book has_many events, deleted transactionally with the book.
-- UTC timestamps/day boundaries. No rank default, generation, cycling, or
+- UTC timestamps/day boundaries. No rank default or cycling; sync generates
+  ranks under the approved random daily/type occupancy policy. No
   ordinary-user management is introduced by the skeleton.
 
 ### Components and data flow
@@ -306,8 +313,8 @@ are implemented; timeline and sync business logic remains unimplemented.
 - `Book`, `BookEvent`: associations/database shape and model validations exist.
   BookEvent requires an existing book, START/FINISH type, unique book/type,
   valid date and integer rank 1..12. Book mutations and serialization are
-  implemented in the controller. Scheduled event synchronization remains
-  unimplemented; model callbacks do not allocate ranks or reconcile events.
+  implemented in the controller. BookEventSync owns event reconciliation and
+  ranks; model callbacks do not allocate ranks or reconcile events.
 - `SessionsController#create`: implemented admin credential validation and
   token response with Cache-Control no-store, no cookie session, shared
   Solid Cache attempt counter and explicit 429 response.
@@ -320,11 +327,13 @@ are implemented; timeline and sync business logic remains unimplemented.
   Update reconciles existing event dates/removes cleared FINISH events within
   the Book transaction; delete cascades atomically. Neither creates new events.
   No ownership lookup.
-- `BookEventsController#index` currently delegates to `Timeline::Page.call(cursor:)`.
-  Stage 3 must extend this boundary to carry the approved before/after anchors.
-  The service owns cursor verification, UTC spans, pinned revision/bounds,
-  event serialization and explicit errors. Stage 2 raises a specific
-  unimplemented error; the controller logs and returns 501, never fake data.
+- `BookEventsController#index` delegates cursor/before/after to Timeline::Page,
+  rejects duplicate query parameters and maps Timeline::Error to JSON errors.
+  Timeline::Page owns signed cursor verification, full-day UTC spans, pinned
+  revision/bounds, direction and explicit errors. Timeline::Refresh builds
+  one joined BookEvent/Book SQL result, serializes selected fields only, writes
+  an immutable revision, then publishes the current pointer. Cache writes
+  must succeed; failure raises without replacing the prior pointer.
 - `StagingSeeds.load!`: implemented Books-only idempotent loader from
   `db/seeds/books.yml`, validated in one transaction. Deterministic BookEvents
   exist only as test fixtures. No admin secrets, users or events in seeds.
@@ -333,11 +342,14 @@ are implemented; timeline and sync business logic remains unimplemented.
   fourth user-facing resource; no management endpoint is added.
   TaskCheckpoint validates required/unique name, defined status, nonnegative
   integer books_processed and non-null metadata. No transition/watermark
-  automation is added by those validations; the sync service remains a stub.
-- Rank assignment stays owned by frontend implementation. Fixtures contain
-  explicit ranks to test the accepted storage/pair contract, not an algorithm.
-  Rank-dependent live mutation/publication remains a named cross-project
-  dependency; no implementation can silently substitute a default.
+  automation is added by those validations. BookEventSync captures a run-start
+  upper bound, selects updated_at inclusively from the prior watermark through
+  that bound, and orders by updated_at/id. Event writes and watermark commit
+  together; failure rolls back and records only the exception class in a
+  separate failed-attempt update, then logs and re-raises.
+- Rank assignment is implemented by backend sync; both events inherit the
+  stable book rank. Explicit cache publication is implemented separately;
+  automatic publication from sync remains outstanding.
 
 ### HTTP contract
 
@@ -371,8 +383,8 @@ Errors use `{ "error": { "code": "...", "message": "..." } }`:
 422 validation_failed, 400 invalid_parameters/invalid_timestamp/invalid_cursor,
 410 revision_expired, 429 rate_limited.
 Book CRUD implements 400/404/422, BE-AUTH implements 401/403 and login 429;
-the unimplemented timeline action returns the skeleton-specific 501
-not_implemented. Timeline-specific errors remain intended contracts.
+timeline implements 400 invalid_parameters/invalid_timestamp/invalid_cursor
+and 410 revision_expired. No product controller action remains a 501 stub.
 
 #### Timeline query parameters
 
@@ -435,14 +447,17 @@ Timeline response shape:
     {
       "id": 1, "book_id": 1, "type": "START",
       "date": "2026-01-01T12:00:00Z", "start_rank": 1,
-      "user_id": null, "title": "Example", "author": "Example author"
+      "user_id": null, "title": "Example", "author": "Example author", "rating": 5
     }
   ],
   "next_cursor": "opaque-signed-cursor"
 }
 ```
 
-No `reader` field is promised while its source is unresolved. FINISH is the API
+Each event joins its Book for title, author, user_id and nullable rating,
+regardless of completion. Reviews are explicitly excluded by user decision;
+no User join/account fields are exposed. No `reader` field is promised while
+its source is unresolved. FINISH is the API
 type; FINISHED remains a display term. Stable event order is timestamp, explicit
 type priority FINISH before START, rank, then book_id/id to resolve reused ranks.
 Each span includes all timestamps on its UTC dates, never splitting a day.
@@ -479,7 +494,10 @@ Approved 2026-10-24: immutable serialized revisions in Rails.cache, with
 may end availability earlier. Unavailable revisions return 410 revision_expired
 and require an explicit initial request; do not silently switch to live data.
 Old cursors retain their original payloads after new revisions are published.
-No additional SQL snapshot table is required.
+No additional SQL snapshot table is required. Development and production use
+Solid Cache for cross-process refresh visibility. Revision payloads also carry
+publication time, enforcing a fixed 24-hour maximum even if store expiry is
+delayed. A single joined query captures event/book values consistently.
 
 Add `bin/rails book_events:refresh_cache`, delegating to `Timeline::Refresh.call`.
 It builds and publishes a new revision from committed Books/BookEvents even
@@ -487,12 +505,13 @@ when the normal current revision has not expired. It does not globally clear
 Rails.cache, invalidate still-available pinned revisions, or advance the
 incremental sync checkpoint. It refreshes the cached projection, not a substitute
 for synchronizing missing events. Failure must surface and leave the prior
-current revision usable. Stage 2 contains only the explicit failing boundary.
+current revision usable. Implemented: snapshot cache write precedes current
+pointer publication, both checked for success. Reads never extend retention.
 
 Book edits are rare: PATCH updates existing associated events by book_id,
 preserving identities for types that remain. DELETE removes the Book and its
 existing BookEvents atomically. Removing finished_at removes the FINISH event;
-adding a finish still requires the shared deferred rank contract.
+adding a finish reuses the persisted START rank when sync creates its event.
 Scheduled sync remains responsible for incremental creation/reconciliation.
 Existing cached revisions remain immutable; a scheduled publication or explicit
 refresh exposes edits/deletions to new timeline requests.
