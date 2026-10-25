@@ -2,10 +2,11 @@
 # Start Rails on port 3001; send requests individually, not as a batch.
 # Set ADMIN_USERNAME and ADMIN_PASSWORD in the REST Client process environment.
 # Do not paste real credentials or tokens into this tracked file.
-# Product endpoints currently return 501 until their Stage 3 implementation.
+# Run bin/rails admin:provision once before login on a fresh database.
+# Login/auth and book listing are implemented; book detail/writes and timeline remain 501.
 @baseUrl = http://localhost:3001
-@username = {{$processEnv ADMIN_USERNAME}}
-@password = {{$processEnv ADMIN_PASSWORD}}
+@username = admin 
+@password = password
 @token = {{login.response.body.$.token}}
 @bookId = {{createBook.response.body.$.book.id}}
 
