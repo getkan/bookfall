@@ -49,10 +49,11 @@ subprojects. Neither dependency grants permission to advance another lifecycle.
 ### Stage 3: Detailed design and implementation
 
 - Approval: granted 2026-10-24. Status: In progress. Models and BE-AUTH
-  completed with passing focused tests. User then requested GET /books:
-  listing is implemented and verified on the local server; stop at its commit
-  checkpoint. Books-only seeds are implemented (events come from sync).
-  Book detail/writes, timeline and sync remain stubbed.
+  completed with passing focused tests. Auth, listing and Books-only seeds
+  were committed as `ae58b2d`. User then selected completion of BE-CRUD:
+  detail/writes, existing-event reconciliation and atomic deletion pass focused
+  tests and a live HTTP walkthrough. Stop at this unit's commit checkpoint.
+  Timeline and sync remain stubbed; new event creation remains with sync.
 - Implement only user-selected units with model/unit and integration tests:
   domain, auth, CRUD, ranks/revisions, pagination, seed data, and CORS.
 - Reuse completed database configuration rather than reimplementing it.

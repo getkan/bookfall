@@ -57,9 +57,8 @@ npm run dev -- --port 3000
 ```
 
 The frontend is available at <http://localhost:3000>. The Rails API listens on
-<http://localhost:3001>. Backend product routes currently return explicit
-HTTP 501 responses for book detail/write actions and timeline behavior not yet
-implemented. Login, book listing and admin authorization are implemented;
+<http://localhost:3001>. The timeline endpoint currently returns an explicit
+HTTP 501 response until implemented. Login, book CRUD and admin authorization are implemented;
 book routes reject missing or
 invalid credentials with 401 and authenticated non-admin users with 403.
 
@@ -104,8 +103,11 @@ Run login first to capture the bearer token, then create the disposable sample
 book before its read/update/delete requests. The delete request targets that
 sample's returned ID. Timeline requests are public; send continuation requests
 only when the preceding named response has a non-null `next_cursor`.
-Expected statuses describe the intended contracts; unimplemented book detail/write actions
-and timeline endpoints still return 501 after applicable authentication.
+Book requests support the documented success/error statuses; the timeline
+endpoint still returns 501.
+Book edits update existing associated event dates without replacing their IDs
+or ranks; clearing completion removes the FINISH event, and deletion removes
+the Book and its events atomically. New events remain the responsibility of sync.
 Book events appear only after synchronization is implemented and
 run, and cached timelines may require a refresh to expose changes.
 
@@ -130,11 +132,11 @@ npm run build
 | Frontend | [SPEC](docs/frontend/SPEC.md) | [ROADMAP](docs/frontend/ROADMAP.md) | [TASKS](docs/frontend/TASKS.md) |
 | Deployment, after both complete | [SPEC](docs/SPEC.md) | [ROADMAP](docs/ROADMAP.md) | [TASKS](docs/TASKS.md) |
 
-Backend Stage 2 is complete and Stage 3 is in progress; model work and BE-AUTH
+Backend Stage 2 is complete and Stage 3 is in progress; models, BE-AUTH and BE-CRUD
 are implemented. Other tasks require selection; frontend remains
 in requirements planning (Stage 1).
 Both retain completed foundation history. Backend product
-endpoints remain explicit stubs except for BE-AUTH and `GET /books`.
+timeline and synchronization remain explicit stubs.
 `bin/rails db:seed` idempotently creates staging Books only; it creates no
 users or BookEvents (run `bin/rails book_events:sync` once implemented).
 Unimplemented intended-behavior tests remain red. See

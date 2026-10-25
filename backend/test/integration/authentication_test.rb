@@ -52,15 +52,22 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "valid admin bearer reaches book listing and remaining action boundaries" do
+  test "valid admin bearer can access every book action" do
     token = users(:admin).generate_token_for(:api_access)
     book_routes.each do |method, path|
       public_send(method, path, headers: { "Authorization" => "Bearer #{token}" }, as: :json)
-      if method == :get && path == "/books"
+      if method == :post
+        assert_error :bad_request, "invalid_parameters"
+      elsif method == :delete
+        assert_response :no_content
+      elsif method == :patch
+        assert_error :bad_request, "invalid_parameters"
+      elsif path == "/books"
         assert_response :ok
         assert response.parsed_body.fetch("books").is_a?(Array)
       else
-        assert_error :not_implemented, "not_implemented"
+        assert_response :ok
+        assert response.parsed_body.fetch("book").is_a?(Hash)
       end
     end
   end

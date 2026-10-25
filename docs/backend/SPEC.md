@@ -7,7 +7,7 @@ timeline and admin-authorized book management, with a Users table for admin acco
 Non-admin user functionality is outside this project's current scope.
 [Roadmap](ROADMAP.md) and [tasks](TASKS.md) track its independent lifecycle,
 Stage 2 completed and Stage 3 authorized 2026-10-24; model work and BE-AUTH
-and GET /books are implemented. Other implementation requires user-selected tasks.
+and book CRUD are implemented. Other implementation requires user-selected tasks.
 [Deployment](../SPEC.md) follows completion of both apps.
 
 The accepted [shared timeline layout](../BOOKEVENT_TIMELINE_LAYOUT_PLAN.md)
@@ -185,9 +185,8 @@ in [.ruby-version](../../backend/.ruby-version), API-only scaffold initially
 containing only `/up`. Stage 2 now adds structural User/Book/BookEvent models
 and explicit HTTP 501 product routes in [routes](../../backend/config/routes.rb).
 bcrypt is installed for password structure; `rack-cors` remains commented out.
-Local API port is 3001. BE-AUTH login, admin provisioning and book authorization
-and book listing are implemented; authorized book detail/write actions and
-public timeline remain 501 stubs.
+Local API port is 3001. BE-AUTH login, admin provisioning, book authorization
+and book CRUD are implemented; the public timeline remains a 501 stub.
 
 [Database configuration](../../backend/config/database.yml) uses SQLite for
 development/test and a single production Postgres database from `DATABASE_URL`
@@ -275,9 +274,8 @@ Authorization: user approved BACKEND Stage 2 on 2026-10-24 and confirmed
 `user_id` as a nullable string placeholder with no association. This supersedes
 the earlier foreign-key/username-label requirement. FRONTEND and DEPLOY do
 not advance. Stage 2 was subsequently accepted and Stage 3 authorized on
-2026-10-24. Model validations, BE-AUTH and book listing are implemented;
-Books-only staging seeds are implemented; book detail/writes, timeline and
-sync business logic remains unimplemented.
+2026-10-24. Model validations, BE-AUTH, book CRUD and Books-only staging seeds
+are implemented; timeline and sync business logic remains unimplemented.
 
 ### Structural schema
 
@@ -307,19 +305,20 @@ sync business logic remains unimplemented.
   Reruns fail rather than overwrite a password or promote an existing account.
 - `Book`, `BookEvent`: associations/database shape and model validations exist.
   BookEvent requires an existing book, START/FINISH type, unique book/type,
-  valid date and integer rank 1..12. Mutation/event synchronization and
-  serialization remain unimplemented; model callbacks do not allocate ranks
-  or reconcile associated records.
+  valid date and integer rank 1..12. Book mutations and serialization are
+  implemented in the controller. Scheduled event synchronization remains
+  unimplemented; model callbacks do not allocate ranks or reconcile events.
 - `SessionsController#create`: implemented admin credential validation and
   token response with Cache-Control no-store, no cookie session, shared
   Solid Cache attempt counter and explicit 429 response.
 - `ApplicationController#require_admin`: verifies the bearer token and current
   persisted role for every book route. Invalid credentials return 401;
   authenticated non-admins return 403.
-- `BooksController`: admin guard implemented for index/show/create/update/destroy;
-  index returns all books in ascending ID order with the approved conditional
-  review serialization. Other action bodies remain stubs.
-  Intended writes include optional rating/review.
+- `BooksController`: admin guard and index/show/create/update/destroy implemented;
+  index returns all books in ascending ID order, sharing conditional review
+  serialization with detail/write responses. Writes include optional rating/review.
+  Update reconciles existing event dates/removes cleared FINISH events within
+  the Book transaction; delete cascades atomically. Neither creates new events.
   No ownership lookup.
 - `BookEventsController#index` currently delegates to `Timeline::Page.call(cursor:)`.
   Stage 3 must extend this boundary to carry the approved before/after anchors.
@@ -360,13 +359,20 @@ Books serialize id, opaque user_id, title, author, started_at, finished_at.
 Completed books additionally expose rating/review (possibly null); unfinished
 books omit those two fields from reads. Writes permit them regardless of
 completion. No credential data is ever included.
+Writes require a nonempty `book` object. Only user_id, title, author, started_at,
+finished_at, rating and review are permitted; IDs and other fields are ignored.
+Values must be strings or null, with numbers also accepted for rating.
+Malformed object/value shapes return 400 invalid_parameters; model validation
+failures return 422 validation_failed with a nonempty message. Missing book IDs
+return 404 not_found. PATCH preserves omitted fields.
 
 Errors use `{ "error": { "code": "...", "message": "..." } }`:
 401 unauthorized, 403 forbidden for authenticated non-admin, 404 not_found,
 422 validation_failed, 400 invalid_parameters/invalid_timestamp/invalid_cursor,
 410 revision_expired, 429 rate_limited.
-BE-AUTH implements 401/403 and login 429; unimplemented action bodies return
-the skeleton-specific 501 not_implemented. Other errors remain intended contracts.
+Book CRUD implements 400/404/422, BE-AUTH implements 401/403 and login 429;
+the unimplemented timeline action returns the skeleton-specific 501
+not_implemented. Timeline-specific errors remain intended contracts.
 
 #### Timeline query parameters
 

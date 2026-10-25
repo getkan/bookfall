@@ -7,14 +7,64 @@
 - Stage 2: **Completed**, accepted by the user on 2026-10-24 after the
   reviewed architecture, skeleton and expected-red contract checkpoint.
 - Stage 3 approval: granted on 2026-10-24. BE-BOOK and remaining model work
-  were committed as `7b1b563`. BE-AUTH is implemented but uncommitted.
-  User subsequently requested running/fixing `/books`; implement only its
-  GET list action (partial BE-CRUD), then Books-only BE-SEEDS (uncommitted).
-  Detail/write, timeline, sync and frontend implementation remain unselected.
+  were committed as `7b1b563`. BE-AUTH, GET /books and Books-only BE-SEEDS
+  were committed as `ae58b2d`. User then selected finishing the book controller
+  (remaining BE-CRUD); implemented below, uncommitted.
+  Timeline, sync and frontend implementation remain unselected.
 - `user_id` remains a nullable string placeholder, with no user association.
 - FRONTEND remains Stage 1; DEPLOY remains blocked. No commit or publication
   is authorized by this stage transition.
 - Earlier session records below are history, superseded by these decisions.
+
+## Stage 3 selected unit: BE-CRUD (remaining book actions)
+
+**Completed (2026-10-24)** — BACKEND-1/2, uncommitted.
+
+- Plan/source review: BooksController, ApplicationController, Book/BookEvent
+  models, routes/schema, backend CRUD/auth/listing/skeleton contracts and
+  SPEC/ROADMAP/TASKS. Preserve local requests.http edits.
+- Implement show/create/update/destroy with a shared serializer preserving
+  existing listing output. Allow only book attributes, preserve omitted PATCH
+  fields, return JSON error envelopes for invalid object/value shapes (400),
+  missing records (404), and model validation failures (422).
+- PATCH atomically updates dates on existing associated events, retaining IDs
+  and ranks, and removes FINISH when completion is cleared. DELETE removes
+  the Book and events atomically. No new events, rank assignment, synchronization,
+  checkpoint changes or timeline cache publication.
+- Added 10 CRUD integration tests including parameter shapes, attribute
+  filtering, partial writes, invalid writes, conditional serialization,
+  missing records, completion removal/addition, and injected update/deletion
+  failures proving rollback. Reuse existing full CRUD and cascade contracts;
+  update auth expectations and retain the timeline-only skeleton assertion.
+- Validation: Ruby 3.4 Docker, disposable SQLite, RAILS_ENV=test,
+  PARALLEL_WORKERS=1, existing session gem cache:
+  - `bin/rails db:prepare`: passed.
+  - `bin/rails test test/integration/book_crud_test.rb
+    test/integration/backend_contract_test.rb test/integration/book_listing_test.rb
+    test/integration/authentication_test.rb test/integration/admin_provisioning_test.rb
+    test/integration/staging_seeds_contract_test.rb test/integration/backend_skeleton_test.rb
+    test/models test/integration/health_check_test.rb`:
+    **80 tests / 929 assertions / 0 failures / 0 errors / 0 skips**.
+  - `bin/rails zeitwerk:check`: passed; `bin/rubocop`:
+    **55 files, no offenses**; `bin/bundler-audit`: no vulnerabilities;
+    `bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error`:
+    no warnings/errors.
+  - Full `bin/rails test`: **99 tests / 944 assertions / 15 failures /
+    4 errors / 0 skips**. Exactly 14 timeline HTTP 501 failures, one sync
+    fault-injection expectation reaching its stub, and four sync stub errors.
+    No remaining CRUD failures; full backend is not yet green.
+  - `bin/rails db:seed:replant` and `bin/rails db:seed`: passed.
+- Live HTTP: task-scoped Rails server on a disposable database, initialized
+  via AdminProvisioning; health/readiness verified, anonymous books 401,
+  login 200, create 201, detail/update 200, invalid rating 422, missing payload
+  400, delete 204 and post-delete detail 404. Persisted event ID/rank/date
+  update and cascade checked. Server stopped; no user database changed.
+- Full gate commands run individually rather than bin/ci's setup wrapper,
+  which clears shared logs/tempfiles. PostgreSQL and browser/CORS not run:
+  no schema/frontend/CORS changes; cross-adapter and feature-wide acceptance
+  remain required before BACKEND completion. Advanced write/sync race risk
+  remains deferred as approved in SPEC.
+- Stop at this unit's commit checkpoint; no next task selected or authorized.
 
 ## Stage 3 selected unit: BE-SEEDS (Books only)
 
@@ -403,7 +453,7 @@ configuration validation tests belong to the authorized scheduling work.
 Validation: `git diff --check` and exact environment-template value check passed.
 Runtime tests skipped: environment-template and documentation changes only.
 
-Except for completed BE-BOOK/BE-AUTH and In progress BE-CRUD, these remain **Not started** as detailed
+Except for completed BE-BOOK/BE-AUTH/BE-CRUD/BE-SEEDS, these remain **Not started** as detailed
 business-logic units. Stage 3 is approved, but the user must select each
 session task; table order is not
 permission to choose or implement a unit automatically.
@@ -412,16 +462,16 @@ permission to choose or implement a unit automatically.
 | --- | --- | --- | --- | --- |
 | BE-BOOK (Completed) | Books with opaque user_id, timestamps, nullable rating/review and model validations | BACKEND-1 | Structural schema | 10 new model tests pass; validation evidence and commit checkpoint above |
 | BE-AUTH (Completed) | Admin-only account functionality on Users, one-time env provisioning, protected passwords, login and rate limit | BACKEND-2 | Existing User schema; approved auth/provisioning policy | Passing auth/provisioning integration tests and live HTTP smoke; evidence and commit checkpoint above |
-| BE-CRUD (In progress; listing complete) | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | Listing passes tests/live HTTP; detail/writes, missing records and manual CRUD remain |
+| BE-CRUD (Completed; uncommitted) | Admin-only book writes including rating/review; conditional review reads | BACKEND-1/2 | BE-BOOK, BE-AUTH | CRUD/auth/error/rollback tests and live HTTP CRUD pass; evidence above |
 | BE-REVISION | Immutable cached timeline revisions and force refresh from persisted events | BACKEND-3 | Existing BookEvents; approved snapshot contract; rank generation deferred | Pinned payloads, 24-hour expiry, eviction/410 recovery, refresh failure preserves current revision/checkpoint |
 | BE-SYNC | Incremental event reconciliation and durable checkpoint monitoring | BACKEND-3/6 | BE-BOOK, BE-REVISION; frontend rank contract for new events | First/incremental runs, identity preservation, finish correction/removal, inclusive replay, atomic watermark, failure monitoring/retry; document deferred concurrency risk |
 | BE-EVENTS | Complete date-span API, bounds, next cursor and restart errors | BACKEND-4 | BE-REVISION; API contract | Empty/dense spans, cross-span pairs, no omissions/duplicates, expiry/error integration tests |
-| BE-SEEDS (Completed; uncommitted) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
+| BE-SEEDS (Completed; ae58b2d) | Idempotent staging Books with embedded reviews; no events/users | BACKEND-5 | BE-BOOK; agreed fixtures | Seeds test plus `bin/rails db:seed` twice without duplicates |
 | BE-CORS | Direct-browser frontend-origin integration | BACKEND-5 | Approved FRONTEND_ORIGIN allowlist; no proxy/cookie credentials | Authorization preflight and origin rejection integration tests |
 
 Structural contracts, deterministic fixtures and executable intended-behavior
-tests now exist; see Stage 2 baseline below. BE-BOOK and BE-AUTH are complete;
-BE-CRUD listing is implemented; remaining detailed
+tests now exist; see Stage 2 baseline below. BE-BOOK, BE-AUTH, BE-CRUD and
+BE-SEEDS are complete; remaining detailed
 implementation tasks remain Not started and are not selected by Stage 3 approval alone.
 
 BE-REVIEW is superseded by embedded Books fields, not completed. Separate Admin
